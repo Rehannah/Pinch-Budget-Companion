@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/lib/localforage.min.js"></script>
+    <script src="js/pages/transactions.js" defer></script>
+</head>
+<body>
+    <header id="app-header"></header>
+    <main>
+        <h1>Transaction Tracker</h1>
+        <form id="transaction-form">
+            <input type="text" id="transaction-name" placeholder="Transaction Name" required>
+            <input type="number" id="transaction-amount" placeholder="Amount" required>
+            <select id="transaction-type">
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+            </select>
+            <button type="submit">Add Transaction</button>
+        </form>
+        <section id="transaction-list">
+            <h2>All Transactions</h2>
+            <ul id="transactions"></ul>
+        </section>
+    </main>
+    <script src="js/app.js"></script>
+</body>
+</html>

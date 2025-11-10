@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/lib/localforage.min.js"></script>
+    <script src="js/pages/dashboard.js" defer></script>
+</head>
+<body>
+    <header id="app-header"></header>
+    <main>
+        <section id="budget-overview">
+            <h1>Budget Overview</h1>
+            <div id="budget-summary">
+                <!-- Budget summary will be dynamically populated here -->
+            </div>
+            <button id="add-category">Add Category</button>
+        </section>
+        <section id="category-limits">
+            <h2>Category Limits</h2>
+            <div id="category-list">
+                <!-- Category limits will be dynamically populated here -->
+            </div>
+        </section>
+        <section id="transaction-summary">
+            <h2>Transaction Summary</h2>
+            <div id="transaction-list">
+                <!-- Transaction summaries will be dynamically populated here -->
+            </div>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2023 Mobile First App</p>
+    </footer>
+    <script src="js/app.js"></script>
+</body>
+</html>
