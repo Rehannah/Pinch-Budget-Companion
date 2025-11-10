@@ -1,64 +1,58 @@
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #f4f4f4;
+/* Minimal custom styles — Tailwind handles the layout. */
+:root{
+  --primary: #9b7cff;
+  --success: #7be495;
+  --danger: #ff8b94;
+  --surface: #fbfbff;
 }
 
-header {
-    background: #35424a;
-    color: #ffffff;
-    padding: 10px 0;
-    text-align: center;
+/* Dark theme variables */
+:root.dark, .dark {
+  --primary: #8b5cf6;
+  --success: #34d399;
+  --danger: #fb7185;
+  --surface: #0b1220;
 }
 
-h1 {
-    margin: 0;
+/* Small helpers for forms when Tailwind isn't enough */
+input[type="text"], input[type="number"], input[type="date"], select, textarea{
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
 }
 
-.container {
-    width: 90%;
-    max-width: 1200px;
-    margin: auto;
-    padding: 20px;
-}
+/* Make sure the app looks good on small screens */
+html,body{height:100%}
 
-.dashboard, .transactions, .settings {
-    background: #ffffff;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    padding: 20px;
-    margin-bottom: 20px;
-}
+/* Mobile safe area helpers */
+body{padding-bottom:env(safe-area-inset-bottom)}
 
-button {
-    background: #35424a;
-    color: #ffffff;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;padding:env(safe-area-inset-bottom);background:var(--surface);border-top:1px solid rgba(0,0,0,0.06)}
 
-button:hover {
-    background: #4a5d6d;
-}
+/* Theme-aware utility classes using CSS variables so dark mode is visual immediately */
+.bg-surface{background-color:var(--surface)!important}
+.text-primary{color:var(--primary)!important}
+.bg-primary{background-color:var(--primary);color:#fff}
+.text-success{color:var(--success)}
+.text-danger{color:var(--danger)}
+.card{background:var(--surface);border-radius:.5rem;padding:1rem;box-shadow:0 6px 18px rgba(99,102,241,0.06)}
 
-input[type="text"], input[type="number"], select {
-    width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-}
+/* Ensure body text color adapts */
+:root{--text-color:#111827}
+:root.dark, .dark{--text-color:#e6eef8}
+body{color:var(--text-color)}
 
-@media (max-width: 600px) {
-    .container {
-        width: 100%;
-        padding: 10px;
-    }
+/* Make Tailwind's bg-white respond to dark mode so existing markup flips as expected */
+.bg-white{background-color:#ffffff}
+.dark .bg-white{background-color:#0f1724 !important; color:var(--text-color)}
 
-    button {
-        width: 100%;
-    }
-}
+/* Modal tweaks */
+#generic-modal, #onboard-modal{z-index:60}
+#generic-modal .bg-white, #onboard-modal .bg-white{max-height:90vh;overflow:auto}
+
+
+/* Simple utility for surfaced cards */
+.card{background:var(--surface);border-radius:.5rem;padding:1rem;box-shadow:0 6px 18px rgba(99,102,241,0.06)}
+
+/* keep legacy classes safe */
+.transaction-item.income{color:var(--success)}
+.transaction-item.expense{color:var(--danger)}

@@ -1,6 +1,6 @@
 {
-  "name": "Mobile First App",
-  "short_name": "MFA",
+  "name": "Pinch: Budget Companion",
+  "short_name": "Pinch",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",

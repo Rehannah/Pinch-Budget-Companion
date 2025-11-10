@@ -3,28 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile First App</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/components.css">
-    <script src="js/lib/localforage.min.js"></script>
-    <script src="js/app.js" defer></script>
+        <title>Pinch — Budget Companion</title>
+        <link rel="manifest" href="manifest.json">
+        <meta name="theme-color" content="#9b7cff">
+        <!-- Tailwind Play CDN for quick setup; replace with a build process for production -->
+        <script src="https://cdn.tailwindcss.com"></script>
+                <script>
+            // Tailwind theme customization: pastel purple primary and sensible colors for income/expense
+            tailwind.config = {
+                darkMode: 'class',
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: '#9b7cff', /* pastel purple */
+                            success: '#7be495', /* pastel green for income */
+                            danger: '#ff8b94',  /* pastel red for expense */
+                            surface: '#fbfbff'
+                        }
+                    }
+                }
+            }
+        </script>
+        <link rel="stylesheet" href="css/styles.css">
+        <!-- LocalForage from CDN -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+        <script type="module" src="js/app.js" defer></script>
 </head>
 <body>
-    <header id="app-header"></header>
-    <main>
-        <h1>Welcome to the Mobile First App</h1>
-        <p>Your go-to solution for managing budgets and transactions.</p>
-        <nav>
-            <ul>
-                <li><a href="dashboard.html">Dashboard</a></li>
-                <li><a href="transactions.html">Transactions</a></li>
-                <li><a href="settings.html">Settings</a></li>
-            </ul>
-        </nav>
-    </main>
+        <div id="app-header"></div>
+        <main class="min-h-screen bg-surface text-gray-800 p-4">
+            <div class="max-w-lg mx-auto">
+                <section class="text-center py-12">
+                    <h1 class="text-3xl font-semibold text-primary">Pinch</h1>
+                    <p class="mt-2 text-gray-600">A simple, offline-first budget companion.</p>
+                </section>
+
+                <nav class="grid grid-cols-3 gap-3">
+                    <a href="dashboard.html" class="block bg-white rounded-lg shadow p-4 text-center">Dashboard</a>
+                    <a href="transactions.html" class="block bg-white rounded-lg shadow p-4 text-center">Transactions</a>
+                    <a href="settings.html" class="block bg-white rounded-lg shadow p-4 text-center">Settings</a>
+                </nav>
+            </div>
+        </main>
     <footer>
-        <p>&copy; 2023 Mobile First App</p>
+        <p>&copy; 2025 Pinch: Budget Companion</p>
     </footer>
-    <script src="js/router.js" defer></script>
+        <!-- Mobile bottom navigation -->
+        <nav class="bottom-nav block md:hidden">
+            <div class="max-w-lg mx-auto flex justify-around items-center">
+                <a href="dashboard.html" class="p-3 text-center text-sm">Dashboard</a>
+                <a href="transactions.html" class="p-3 text-center text-sm">Transactions</a>
+                <a href="settings.html" class="p-3 text-center text-sm">Settings</a>
+            </div>
+        </nav>
+    <!-- optional router if you switch to SPA later -->
+    <script type="module" src="js/router.js" defer></script>
 </body>
 </html>

@@ -3,32 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/components.css">
-    <title>Settings</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#9b7cff', success: '#7be495', danger: '#ff8b94', surface: '#fbfbff' } } } }
+        </script>
+        <link rel="stylesheet" href="css/styles.css">
+        <title>Settings — Pinch</title>
+        <link rel="manifest" href="manifest.json">
+        <meta name="theme-color" content="#9b7cff">
 </head>
 <body>
-    <header>
-        <h1>Settings</h1>
-        <nav>
-            <ul>
-                <li><a href="index.html">Home</a></li>
-                <li><a href="dashboard.html">Dashboard</a></li>
-                <li><a href="transactions.html">Transactions</a></li>
-                <li><a href="settings.html">Settings</a></li>
-            </ul>
+        <div id="app-header"></div>
+        <main class="min-h-screen p-4 bg-surface">
+            <div class="max-w-lg mx-auto">
+                <section class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold">Data & App</h2>
+                    <div class="mt-4 space-y-3">
+                        <button id="export-data" class="w-full bg-primary text-white py-2 rounded">Export Data (CSV)</button>
+                        <label class="block">
+                            <span class="sr-only">Import</span>
+                            <input id="import-file" type="file" accept="application/json" class="w-full" />
+                        </label>
+                        <button id="restart-app" class="w-full bg-red-200 text-red-800 py-2 rounded">Restart for New Month</button>
+                        <div class="text-sm text-gray-600">Tip: exported CSV opens in Excel. For full Excel export, integrate SheetJS (xlsx).</div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+        <script type="module" src="js/storage.js"></script>
+        <script type="module" src="js/pages/settings.js"></script>
+        <!-- Mobile bottom nav -->
+        <nav class="bottom-nav block md:hidden">
+            <div class="max-w-lg mx-auto flex justify-around items-center">
+                <a href="dashboard.html" class="p-3 text-center text-sm">Dashboard</a>
+                <a href="transactions.html" class="p-3 text-center text-sm">Transactions</a>
+                <a href="settings.html" class="p-3 text-center text-sm">Settings</a>
+            </div>
         </nav>
-    </header>
-    <main>
-        <section id="data-management">
-            <h2>Data Management</h2>
-            <button id="export-data">Export Data to Excel</button>
-            <button id="import-data">Import Data from File</button>
-            <button id="restart-app">Restart App for New Month</button>
-        </section>
-    </main>
-    <script src="js/lib/localforage.min.js"></script>
-    <script src="js/storage.js"></script>
-    <script src="js/pages/settings.js"></script>
 </body>
 </html>

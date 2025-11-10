@@ -5,7 +5,7 @@ This project is a mobile-first web application designed to manage personal finan
 
 ## Project Structure
 ```
-mobile-first-app
+pinch-budget-companion
 ├── src
 │   ├── index.html
 │   ├── dashboard.html
@@ -50,8 +50,6 @@ mobile-first-app
    git clone <repository-url>
    ```
 2. Navigate to the project directory:
-   ```
-   cd mobile-first-app
    ```
 3. Install dependencies (if any):
    ```
