@@ -1,4 +1,4 @@
-import { getState, addCategory } from '../storage.js';
+import { getState, addCategory, updateCategory } from '../storage.js';
 
 // Dashboard page initializer — exposes global initDashboard for app.js to call.
 window.initDashboard = async function() {
@@ -107,8 +107,8 @@ function renderDashboard(state){
             expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
         }
 
-        // show expense categories with bars
-        expenseCats.forEach(cat => {
+    // show expense categories with bars
+    expenseCats.forEach(cat => {
             const spent = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
             const pct = cat.limit > 0 ? Math.min(100, Math.round((spent / cat.limit) * 100)) : 0;
             const li = document.createElement('li');
@@ -122,11 +122,18 @@ function renderDashboard(state){
                     <div class="h-3 bg-danger" style="width:${pct}%"></div>
                 </div>
             `;
+            // add edit/delete buttons for each category
+            const actions = document.createElement('div');
+            actions.className = 'flex items-center gap-2';
+            actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="text-sm text-primary">Edit</button><button data-action="delete" data-id="${cat.id}" class="text-sm text-red-600">Delete</button>`;
+            // find the top-level flex container we created in innerHTML to append actions
+            const topFlex = li.querySelector('.flex.justify-between') || li.querySelector('.flex');
+            if(topFlex) topFlex.appendChild(actions);
             expenseList.appendChild(li);
         });
 
             // attach edit/delete handlers for categories
-        categoryList.querySelectorAll('button[data-action]').forEach(btn=>{
+        expenseList.querySelectorAll('button[data-action]').forEach(btn=>{
             btn.addEventListener('click', async ()=>{
                 const id = btn.getAttribute('data-id');
                 const action = btn.getAttribute('data-action');
@@ -152,14 +159,9 @@ function renderDashboard(state){
                             `;
                             window.showModal({ title: 'Edit category', html, onSave: async ()=>{
                                 const newName = document.getElementById('edit-cat-name').value || cat.name;
-                                const newLimit = parseFloat(document.getElementById('edit-cat-limit').value) || 0;
+                                const newLimit = parseFloat(document.getElementById('edit-cat-limit').value);
                                 const newType = document.getElementById('edit-cat-type').value || 'expense';
-                                const { updateCategoryLimit } = await import('../storage.js');
-                                await updateCategoryLimit(id, newLimit);
-                                const st = await getState();
-                                const c = st.categories.find(x=>x.id===id);
-                                if(c){ c.name = newName; c.type = newType; }
-                                await import('../storage.js').then(m=>m.saveState(st));
+                                await updateCategory(id, { name: newName, limit: Number(isNaN(newLimit)?cat.limit:newLimit), type: newType });
                                 const s2 = await getState(); renderDashboard(s2);
                             }});
                             // pre-select type
@@ -168,15 +170,4 @@ function renderDashboard(state){
             });
         });
 
-    // recent transactions
-    const recent = document.getElementById('recent-transactions');
-    recent.innerHTML = '';
-    state.transactions.slice(-5).reverse().forEach(t=>{
-        const li = document.createElement('li');
-        li.className = 'flex items-center justify-between';
-        const cat = state.categories.find(c=>c.id===t.categoryId);
-        const prettyDate = window.formatDate(t.date);
-        li.innerHTML = `<div>${prettyDate} • ${t.description || ''} <span class="text-xs text-gray-500">${cat ? cat.name : ''}</span></div><div class="font-semibold ${t.type==='income'?'text-success':'text-danger'}">${t.type==='income'?'+':'-'}$${Number(t.amount).toFixed(2)}</div>`;
-        recent.appendChild(li);
-    });
 }

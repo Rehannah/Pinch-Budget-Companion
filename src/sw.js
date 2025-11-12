@@ -1,6 +1,6 @@
 const CACHE_NAME = 'pinch-cache-v1';
 const ASSETS = [
-	'/', '/index.html', '/dashboard.html', '/transactions.html', '/settings.html',
+	'/', '/dashboard.html', '/transactions.html', '/settings.html',
 	'/css/styles.css', '/js/app.js'
 ];
 

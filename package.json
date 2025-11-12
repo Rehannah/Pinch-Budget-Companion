@@ -4,16 +4,14 @@
   "description": "A mobile-first application for budget tracking and management.",
   "main": "src/app.js",
   "scripts": {
-  "start": "live-server src",
-  "dev": "npx http-server src -p 8000 --cors",
-  "build": "echo 'Build step not defined'",
-  "test": "echo 'Test step not defined'"
+    "serve": "npx http-server src -p 8000 --cors",
+    "start": "npm run serve",
+    "quicktest": "node test/run-tests.mjs"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.17",
-    "localforage": "^1.10.0",
-    "tailwindcss": "^4.1.17"
+    "localforage": "^1.10.0"
   },
+  "devDependencies": {},
   "keywords": [
     "mobile",
     "budget",

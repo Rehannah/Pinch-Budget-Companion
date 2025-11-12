@@ -7,7 +7,6 @@ This project is a mobile-first web application designed to manage personal finan
 ```
 pinch-budget-companion
 ├── src
-│   ├── index.html
 │   ├── dashboard.html
 │   ├── transactions.html
 │   ├── settings.html
@@ -44,18 +43,49 @@ pinch-budget-companion
 - LocalForage for offline storage
 - Progressive Web App (PWA) capabilities
 
-## Setup Instructions
+## Setup & Development
+
+This project uses Vite + Tailwind for development and builds. The source HTML/JS live in `src/` and the production build is output to `dist/`.
+
 1. Clone the repository:
-   ```
-   git clone <repository-url>
-   ```
-2. Navigate to the project directory:
-   ```
-3. Install dependencies (if any):
-   ```
-   npm install
-   ```
-4. Open `src/index.html` in a web browser to view the application.
+
+```bash
+git clone <repository-url>
+cd pinch-budget-companion
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Run the dev server (hot reload):
+
+```bash
+npm run dev
+```
+
+Open the URL printed by Vite (usually http://localhost:5173). The dev server serves the `src/` directory and processes Tailwind via PostCSS.
+
+4. Build for production:
+
+```bash
+npm run build
+```
+
+Built assets are placed in `dist/`.
+
+5. Preview the production build locally:
+
+```bash
+npm run preview
+```
+
+Notes:
+- The app stores data locally using LocalForage (IndexedDB). That keeps data across sessions until the user resets for a new month.
+- For quick prototyping we used Tailwind directives in `src/css/styles.css` and Vite/PostCSS to produce final CSS.
+- Tests will be added/recreated after a final code cleanup; a Vitest setup is present but tests may be adapted.
 
 ## Usage
 - Navigate through the app using the header links.

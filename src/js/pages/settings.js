@@ -56,7 +56,6 @@ window.initSettings = async function(){
     });
 
         document.getElementById('restart-app').addEventListener('click', async ()=>{
-            if(!confirm('This will clear transactions and start a new month. Continue?')) return;
             // friendly modal to collect month/base and optional categories (reuse onboarding pattern)
             const html = `
                 <div class="space-y-2">
@@ -69,13 +68,38 @@ window.initSettings = async function(){
                     <button id="restart-add-cat" class="text-sm text-primary">+ Add category</button>
                 </div>
             `;
+            // Use showModal and validate inputs in onSave; return false to keep modal open when validation fails
             window.showModal({ title: 'Restart for new month', html, saveText: 'Restart', onSave: async ()=>{
                 const month = document.getElementById('restart-month').value || null;
-                const base = parseFloat(document.getElementById('restart-base').value) || 0;
+                const baseRaw = document.getElementById('restart-base').value;
+                const base = baseRaw === '' ? NaN : parseFloat(baseRaw);
+                if(!month){
+                    alert('Please choose a month to restart.');
+                    return false; // keep modal open
+                }
+                if(Number.isNaN(base) || base < 0){
+                    alert('Base budget must be a number ≥ 0.');
+                    return false;
+                }
                 const rows = Array.from(document.getElementById('restart-cat-list').children || []);
-                const cats = rows.map(r=>{ const inputs = r.querySelectorAll('input,select'); return { name: inputs[0].value||'Unnamed', limit: Number(inputs[1].value)||0, type: inputs[2].value||'expense' }; });
+                const cats = [];
+                for(const r of rows){
+                    const inputs = r.querySelectorAll('input,select');
+                    const name = (inputs[0].value || '').trim();
+                    const limitRaw = inputs[1].value;
+                    const limit = limitRaw === '' ? NaN : Number(limitRaw);
+                    const type = inputs[2].value || 'expense';
+                    if(!name){ alert('Category names cannot be empty.'); return false; }
+                    if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return false; }
+                    cats.push({ name, limit, type });
+                }
                 await resetForNewMonth({ month, baseBudget: base, categories: cats });
-                alert('App restarted for new month');
+                // re-init pages so UI reflects the new month/state
+                if (window.initDashboard) window.initDashboard();
+                if (window.initTransactions) window.initTransactions();
+                if (window.initSettings) window.initSettings();
+                // show a friendly confirmation (modal will close now)
+                window.showModal({ title: 'Restarted', html: '<p class="text-sm">App restarted for ' + month + '.</p>', saveText: 'OK', onSave: ()=>{} });
             }, onCancel: ()=>{}});
             // small helper to add rows
             function addRestartRow(name='', limit='', type='expense'){
@@ -88,20 +112,7 @@ window.initSettings = async function(){
             document.getElementById('restart-add-cat').addEventListener('click', ()=> addRestartRow());
         });
 
-    // Dark mode toggle
-    const dm = document.createElement('div');
-    dm.className = 'mt-4';
-    dm.innerHTML = `
-        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="dark-mode-toggle"/> Dark mode</label>
-    `;
-    document.querySelector('main .max-w-lg').appendChild(dm);
-    const darkToggle = document.getElementById('dark-mode-toggle');
-    if(meta.darkMode) darkToggle.checked = true;
-    darkToggle.addEventListener('change', async ()=>{
-        const on = darkToggle.checked;
-        document.documentElement.classList.toggle('dark', on);
-        const s = await getState(); s.meta.darkMode = on; await import('../storage.js').then(m=>m.saveState(s));
-    });
+    // Note: dark mode toggle removed per user request. Theme CSS remains available.
 
     // show some info about current state
     const state = await getState();

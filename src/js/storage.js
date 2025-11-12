@@ -66,14 +66,24 @@ async function resetForNewMonth({ month, baseBudget, categories } = {}) {
 }
 
 // Category helpers
-async function addCategory({ name, limit = 0 }) {
+async function addCategory({ name, limit = 0, type = 'expense' } = {}) {
     const state = await getState();
     const id = `c${Date.now()}`;
-    // If limit is omitted for income categories, set limit to 0 and type to income
-    const category = { id, name, limit: Number(limit || 0), type: (typeof arguments[0] === 'object' && arguments[0].type) ? arguments[0].type : 'expense' };
+    const category = { id, name: String(name || 'Unnamed'), limit: Number(isNaN(Number(limit)) ? 0 : Number(limit)), type: type === 'income' ? 'income' : 'expense' };
     state.categories.push(category);
     await saveState(state);
-    return state.categories[state.categories.length - 1];
+    return category;
+}
+
+async function updateCategory(id, { name, limit, type } = {}){
+    const state = await getState();
+    const cat = state.categories.find(c => c.id === id);
+    if(!cat) return null;
+    if(typeof name !== 'undefined') cat.name = String(name);
+    if(typeof limit !== 'undefined') cat.limit = Number(isNaN(Number(limit)) ? cat.limit : Number(limit));
+    if(typeof type !== 'undefined') cat.type = type === 'income' ? 'income' : 'expense';
+    await saveState(state);
+    return cat;
 }
 
 async function removeCategory(id) {
@@ -184,6 +194,7 @@ export {
     addCategory,
     removeCategory,
     updateCategoryLimit,
+    updateCategory,
     addTransaction,
     editTransaction,
     deleteTransaction,

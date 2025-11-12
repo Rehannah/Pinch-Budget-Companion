@@ -38,10 +38,14 @@ async function populateCategories(){
                         `;
                         await new Promise(resolve => {
                             window.showModal({ title: 'Add category', html, saveText: 'Add', onSave: async ()=>{
-                                const name = document.getElementById('new-cat-name').value || 'Unnamed';
-                                const limit = parseFloat(document.getElementById('new-cat-limit').value) || 0;
+                                const name = (document.getElementById('new-cat-name').value || '').trim();
+                                const limitRaw = document.getElementById('new-cat-limit').value;
+                                const limit = limitRaw === '' ? NaN : parseFloat(limitRaw);
                                 const type = document.getElementById('new-cat-type').value || 'expense';
-                                const newCat = await addCategory({ name, limit, type });
+                                // validation: name required, limit must be number >= 0 for expense
+                                if(!name){ alert('Category name is required.'); return false; }
+                                if(type === 'expense' && (Number.isNaN(limit) || limit < 0)){ alert('Limit must be a number ≥ 0.'); return false; }
+                                const newCat = await addCategory({ name, limit: Number(isNaN(limit)?0:limit), type });
                                 await populateCategories();
                                 sel.value = newCat.id;
                                 resolve();
@@ -59,8 +63,12 @@ function attachForm(){
         const type = document.getElementById('transaction-type').value;
     let categoryId = document.getElementById('transaction-category').value;
         const date = document.getElementById('transaction-date').value;
-        const description = document.getElementById('transaction-desc').value;
-        const amount = Number(document.getElementById('transaction-amount').value);
+    const description = document.getElementById('transaction-desc').value;
+    const amountRaw = document.getElementById('transaction-amount').value;
+    const amount = amountRaw === '' ? NaN : Number(amountRaw);
+    // basic validation
+    if(Number.isNaN(amount) || amount <= 0){ window.showModal({ title: 'Invalid amount', html: '<p class="text-sm">Please enter an amount greater than 0.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
+    if(!date){ window.showModal({ title: 'Invalid date', html: '<p class="text-sm">Please choose a date for the transaction.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
                 if(!categoryId || categoryId === '__no_cat__'){
                     // ask user to create a category first
                     await new Promise(resolve => {
@@ -90,7 +98,7 @@ function attachForm(){
                         }, onCancel: ()=> resolve() });
                     });
                 }
-                if(!categoryId){ alert('Choose a category'); return; }
+                if(!categoryId){ window.showModal({ title: 'Missing category', html: '<p class="text-sm">Please choose or create a category.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
             // Check category limit for expense
             if(type==='expense'){
                 const state = await getState();
@@ -199,9 +207,12 @@ async function renderTransactions(){
                             `;
                             await new Promise(resolve => {
                                 window.showModal({ title: 'Edit transaction', html, saveText: 'Save', onSave: async ()=>{
-                                    const newAmt = parseFloat(document.getElementById('edit-t-amount').value) || t.amount;
+                                    const newAmtRaw = document.getElementById('edit-t-amount').value;
+                                    const newAmt = newAmtRaw === '' ? NaN : parseFloat(newAmtRaw);
                                     const newDesc = document.getElementById('edit-t-desc').value || t.description;
                                     const newDate = document.getElementById('edit-t-date').value || t.date;
+                                    if(Number.isNaN(newAmt) || newAmt <= 0){ alert('Amount must be a number greater than 0.'); return false; }
+                                    if(!newDate){ alert('Please choose a date.'); return false; }
                                     await editTx(id, { amount: newAmt, description: newDesc, date: newDate });
                                     await renderTransactions();
                                     resolve();

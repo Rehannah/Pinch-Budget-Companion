@@ -1,38 +1,21 @@
 // App bootstrap (ES module). Mounts header and initializes storage and current page script.
-import Header from '../components/header.js';
-import { initStorage, getState, saveState } from './storage.js';
+import Header, { initHeader } from '../components/header.js';
+import { initStorage, getState } from './storage.js';
+// Removed CSS import to run without a bundler.
 
 function mountHeader() {
     const el = document.getElementById('app-header');
     if (!el) return;
     el.innerHTML = Header();
-    // attach basic nav handlers for progressive enhancement
+    // attach basic nav handlers / highlight active link
+    initHeader();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
     const state = await initStorage();
     mountHeader();
 
-        // wire header dark toggle button
-        (function wireHeaderDarkToggle(){
-            const btn = document.getElementById('dark-toggle-btn');
-            if(!btn) return;
-            // reflect current state
-            try{ const meta = (state && state.meta) || {}; btn.textContent = meta.darkMode ? 'Light' : 'Dark'; }catch(e){}
-            btn.addEventListener('click', async ()=>{
-                const s = await getState();
-                const on = !((s.meta && s.meta.darkMode) || false);
-                document.documentElement.classList.toggle('dark', on);
-                s.meta = s.meta || {}; s.meta.darkMode = on;
-                await saveState(s);
-                btn.textContent = on ? 'Light' : 'Dark';
-            });
-        })();
-
-    // Apply dark mode if set
-    if(state && state.meta && state.meta.darkMode){
-        document.documentElement.classList.add('dark');
-    }
+    // Note: dark mode toggle removed per user request. Theme-related CSS remains.
 
     // On first run (no month set) show onboarding
     if(!state || !state.meta || !state.meta.month){
@@ -126,21 +109,30 @@ function showOnboarding(){
         document.getElementById('onboard-add-cat').addEventListener('click', ()=> addCatRow());
         document.getElementById('onboard-skip').addEventListener('click', ()=>{ modal.remove(); });
         document.getElementById('onboard-save').addEventListener('click', async ()=>{
-            const month = document.getElementById('onboard-month').value || null;
-            const base = parseFloat(document.getElementById('onboard-base').value) || 0;
-            const rows = Array.from(document.getElementById('onboard-cat-list').children);
-            const cats = rows.map(r=>{
-                const inputs = r.querySelectorAll('input,select');
-                return { name: inputs[0].value || 'Unnamed', limit: Number(inputs[1].value) || 0, type: inputs[2].value || 'expense' };
+                const month = document.getElementById('onboard-month').value || null;
+                const base = parseFloat(document.getElementById('onboard-base').value);
+                // basic validation
+                if(!month){ alert('Please choose a month to continue.'); return; }
+                if(Number.isNaN(base) || base < 0){ alert('Base budget must be a number ≥ 0.'); return; }
+                const rows = Array.from(document.getElementById('onboard-cat-list').children);
+                const cats = [];
+                for(const r of rows){
+                    const inputs = r.querySelectorAll('input,select');
+                    const name = (inputs[0].value || '').trim();
+                    const limit = Number(inputs[1].value);
+                    const type = inputs[2].value || 'expense';
+                    if(!name){ alert('Category names cannot be empty.'); return; }
+                    if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
+                    cats.push({ name, limit, type });
+                }
+                const { resetForNewMonth } = await import('./storage.js');
+                await resetForNewMonth({ month, baseBudget: base, categories: cats });
+                modal.remove();
+                // re-init pages
+                if (window.initDashboard) window.initDashboard();
+                if (window.initTransactions) window.initTransactions();
+                if (window.initSettings) window.initSettings();
             });
-            const { resetForNewMonth } = await import('./storage.js');
-            await resetForNewMonth({ month, baseBudget: base, categories: cats });
-            modal.remove();
-            // re-init pages
-            if (window.initDashboard) window.initDashboard();
-            if (window.initTransactions) window.initTransactions();
-            if (window.initSettings) window.initSettings();
-        });
 }
 
 // Small modal utility used by pages to show forms/prompts
@@ -162,7 +154,20 @@ window.showModal = function({ title = '', html = '', onSave = null, saveText = '
     `;
     document.body.appendChild(modal);
     document.getElementById('modal-cancel').addEventListener('click', ()=>{ modal.remove(); if(onCancel) onCancel(); });
-    document.getElementById('modal-save').addEventListener('click', async ()=>{ if(onSave) await onSave(); modal.remove(); });
+    document.getElementById('modal-save').addEventListener('click', async ()=>{
+        if(onSave){
+            try{
+                // If onSave explicitly returns false, keep the modal open (useful for validation)
+                const res = await onSave();
+                if(res === false) return; // do not remove modal
+            }catch(err){
+                // if onSave throws, log and keep modal open so user can fix issues
+                console.error('modal onSave error', err);
+                return;
+            }
+        }
+        modal.remove();
+    });
     return modal;
 }
 
