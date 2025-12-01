@@ -1,18 +1,15 @@
 // This file contains the logic for the settings page.
 
-import { clearTransactionsOnly, getState } from '../storage.js';
+import { clearTransactionsOnly } from '../storage.js';
 
 window.initSettings = async function(){
-    // Restart: clear transactions and redirect to dashboard where onboarding will show
     const btn = document.getElementById('restart-app');
     if(btn) btn.addEventListener('click', async ()=>{
-        if(!confirm('Clear all transactions and restart? You can keep or change categories on the next page.')) return;
+        if(!confirm('Clear all transactions and restart?')) return;
         await clearTransactionsOnly();
-        // redirect to dashboard so onboarding shows there
-        window.location.href = 'dashboard.html';
+        // Show onboarding modal on current page (dashboard will load after onboarding completes)
+        if(window.showOnboarding) {
+            window.showOnboarding();
+        }
     });
-
-    // show some info about current state
-    const state = await getState();
-    
 }

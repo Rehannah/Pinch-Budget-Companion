@@ -1,12 +1,11 @@
 // App bootstrap (ES module). Mounts header and initializes storage and current page script.
 import Header, { initHeader } from '../components/header.js';
-import { initStorage, getState } from './storage.js';
+import { initStorage, getState, resetForNewMonth } from './storage.js';
 
 function mountHeader() {
     const el = document.getElementById('app-header');
     if (!el) return;
     el.innerHTML = Header();
-    // attach basic nav handlers / highlight active link
     initHeader();
 }
 
@@ -14,18 +13,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const state = await initStorage();
     mountHeader();
 
-    // On first run or restart (no month set) show onboarding
+    // On first run or after restart (no month set) show onboarding
     if(!state || !state.meta || !state.meta.month){
         showOnboarding();
     }
-
-    // subscribe to state changes for autosave/export
-    window.addEventListener('appStateChanged', (e)=>{
-        const s = e.detail;
-        tryAutoExport(s);
-    });
-
-    // Service worker registration removed to avoid caching during development
 
     // If page-specific init functions exist, call them.
     if (window.initDashboard) window.initDashboard();
@@ -33,141 +24,153 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.initSettings) window.initSettings();
 });
 
+// Expose globally so settings.js can call it after clearing transactions
+window.showOnboarding = showOnboarding;
 
-function showOnboarding(){
-    // Simple modal injected into DOM to collect month/base/categories
+async function showOnboarding(){
     if(document.getElementById('onboard-modal')) return;
+    
+    const state = await getState();
+    const hasExistingCategories = state && state.categories && state.categories.length > 0;
+    
+    // Build modal HTML
     const modal = document.createElement('div');
     modal.id = 'onboard-modal';
     modal.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
-    
-    // Fetch current state to check for existing categories
-    (async () => {
-        const state = await getState();
-        const hasExistingCategories = state && state.categories && state.categories.length > 0;
+    modal.innerHTML = `
+        <div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
+            <h3 class="h5 fw-semibold">Welcome — Setup your month</h3>
+            <div class="mt-3">
+                <label class="form-label small">Month</label>
+                <input id="onboard-month" type="month" class="form-control" />
+                <label class="form-label small mt-2">Base budget</label>
+                <input id="onboard-base" type="number" step="0.01" class="form-control" placeholder="0.00" />
 
-        modal.innerHTML = `
-            <div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
-                <h3 class="h5 fw-semibold">Welcome — Setup your month</h3>
+                ${hasExistingCategories ? `
+                <div class="form-check mt-2 mb-2">
+                    <input class="form-check-input" type="checkbox" id="onboard-keep-cats" checked />
+                    <label class="form-check-label small" for="onboard-keep-cats">Keep existing categories</label>
+                </div>
+                ` : ''}
+
                 <div class="mt-3">
-                    <label class="form-label small">Month</label>
-                    <input id="onboard-month" type="month" class="form-control" />
-                    <label class="form-label small mt-2">Base budget</label>
-                    <input id="onboard-base" type="number" step="0.01" class="form-control" placeholder="0.00" />
-
-                    ${hasExistingCategories ? `
-                    <div class="form-check mt-2 mb-2">
-                        <input class="form-check-input" type="checkbox" id="onboard-keep-cats" checked />
-                        <label class="form-check-label small" for="onboard-keep-cats">Keep existing categories</label>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <label class="form-label small">Categories</label>
+                        <button id="onboard-add-cat" class="btn btn-link small text-primary">+ Add</button>
                     </div>
-                    ` : ''}
+                    <div id="onboard-cat-list" class="mt-2" style="max-height:10rem; overflow:auto"></div>
+                </div>
 
-                    <div class="mt-3">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <label class="form-label small">Categories</label>
-                            <button id="onboard-add-cat" class="btn btn-link small text-primary">+ Add</button>
-                        </div>
-                        <div id="onboard-cat-list" class="mt-2" style="max-height:10rem; overflow:auto"></div>
-                    </div>
-
-                    <div class="d-flex gap-2 justify-content-end mt-3">
-                        <button id="onboard-skip" class="btn btn-secondary">Skip</button>
-                        <button id="onboard-save" class="btn btn-primary">Start</button>
-                    </div>
+                <div class="d-flex gap-2 justify-content-end mt-3">
+                    <button id="onboard-skip" class="btn btn-secondary">Skip</button>
+                    <button id="onboard-save" class="btn btn-primary">Start</button>
                 </div>
             </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Helper to create a category input row
+    function addCatRow(name='', limit='', type='expense'){
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 align-items-center mb-2';
+        row.innerHTML = `
+            <input class="form-control flex-grow-1" placeholder="Category name" value="${name}" />
+            <input class="form-control" style="width:6rem" placeholder="Limit" value="${limit}" />
+            <select class="form-select" style="width:8rem">
+                <option value="expense" ${type==='expense'?'selected':''}>Expense</option>
+                <option value="income" ${type==='income'?'selected':''}>Income</option>
+            </select>
+            <button class="btn btn-link text-danger p-0">Remove</button>
         `;
-        document.body.appendChild(modal);
+        row.querySelector('button').addEventListener('click', () => row.remove());
+        return row;
+    }
 
-        // helper to add a category row
-        function addCatRow(name='', limit='', type='expense'){
-            const row = document.createElement('div');
-            row.className = 'd-flex gap-2 align-items-center mb-2';
-            row.innerHTML = `
-                <input class="form-control flex-grow-1" placeholder="Category name" value="${name}" />
-                <input class="form-control" style="width:6rem" placeholder="Limit" value="${limit}" />
-                <select class="form-select" style="width:8rem">
-                    <option value="expense" ${type==='expense'?'selected':''}>Expense</option>
-                    <option value="income" ${type==='income'?'selected':''}>Income</option>
-                </select>
-                <button class="btn btn-link text-danger p-0">Remove</button>
-            `;
-            const removeBtn = row.querySelector('button');
-            removeBtn.addEventListener('click', ()=> row.remove());
-            document.getElementById('onboard-cat-list').appendChild(row);
-        }
-
-        // If restarting with "keep categories" checked, manage category input based on checkbox
-        const keepCheckbox = document.getElementById('onboard-keep-cats');
-        const categoriesInput = document.getElementById('onboard-cat-list');
+    // Helper to show/refresh category display
+    function updateCategoryDisplay(showExisting){
+        const list = document.getElementById('onboard-cat-list');
+        list.innerHTML = '';
         
-        if(keepCheckbox) {
-            keepCheckbox.addEventListener('change', ()=>{
-                if(keepCheckbox.checked){
-                    // Show existing categories for reference
-                    categoriesInput.innerHTML = '';
-                    state.categories.forEach(cat => {
-                        const label = document.createElement('div');
-                        label.className = 'small p-2 bg-light rounded mb-2';
-                        label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
-                        categoriesInput.appendChild(label);
-                    });
-                } else {
-                    // Clear to allow custom category entry
-                    categoriesInput.innerHTML = '';
-                }
+        if(showExisting && state.categories.length > 0){
+            // Show existing categories as read-only labels
+            state.categories.forEach(cat => {
+                const label = document.createElement('div');
+                label.className = 'small p-2 bg-light rounded mb-2';
+                label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
+                list.appendChild(label);
             });
-            // Initialize with existing categories if checkbox is checked
-            if(keepCheckbox.checked){
-                state.categories.forEach(cat => {
-                    const label = document.createElement('div');
-                    label.className = 'small p-2 bg-light rounded mb-2';
-                    label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
-                    categoriesInput.appendChild(label);
-                });
+        }
+    }
+
+    // Set up event handlers
+    const keepCheckbox = document.getElementById('onboard-keep-cats');
+    const categoryList = document.getElementById('onboard-cat-list');
+    const addBtn = document.getElementById('onboard-add-cat');
+    const skipBtn = document.getElementById('onboard-skip');
+    const saveBtn = document.getElementById('onboard-save');
+
+    // Initialize category display
+    if(keepCheckbox && keepCheckbox.checked){
+        updateCategoryDisplay(true);
+    }
+
+    // Toggle between keeping categories and adding new ones
+    if(keepCheckbox){
+        keepCheckbox.addEventListener('change', () => {
+            updateCategoryDisplay(keepCheckbox.checked);
+        });
+    }
+
+    // Add category button
+    addBtn.addEventListener('click', () => {
+        if(!keepCheckbox || !keepCheckbox.checked){
+            categoryList.appendChild(addCatRow());
+        }
+    });
+
+    // Skip button
+    skipBtn.addEventListener('click', () => modal.remove());
+
+    // Save button
+    saveBtn.addEventListener('click', async () => {
+        const month = document.getElementById('onboard-month').value;
+        const baseBudget = parseFloat(document.getElementById('onboard-base').value);
+
+        // Validate inputs
+        if(!month){ alert('Please choose a month to continue.'); return; }
+        if(Number.isNaN(baseBudget) || baseBudget < 0){ alert('Base budget must be a number ≥ 0.'); return; }
+
+        // Collect categories
+        let categories = [];
+        const keepExisting = keepCheckbox && keepCheckbox.checked;
+
+        if(keepExisting){
+            categories = state.categories || [];
+        } else {
+            // Collect manually entered categories
+            const rows = Array.from(categoryList.children).filter(r => r.classList.contains('d-flex'));
+            for(const r of rows){
+                const [nameInput, limitInput, typeSelect] = r.querySelectorAll('input,select');
+                const name = (nameInput.value || '').trim();
+                const limit = Number(limitInput.value);
+                const type = typeSelect.value || 'expense';
+
+                if(!name){ alert('Category names cannot be empty.'); return; }
+                if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
+                categories.push({ name, limit, type });
             }
         }
 
-        document.getElementById('onboard-add-cat').addEventListener('click', ()=> {
-            if(!keepCheckbox || !keepCheckbox.checked) addCatRow();
-        });
-        document.getElementById('onboard-skip').addEventListener('click', ()=>{ modal.remove(); });
-        document.getElementById('onboard-save').addEventListener('click', async ()=>{
-                const month = document.getElementById('onboard-month').value || null;
-                const base = parseFloat(document.getElementById('onboard-base').value);
-                // basic validation
-                if(!month){ alert('Please choose a month to continue.'); return; }
-                if(Number.isNaN(base) || base < 0){ alert('Base budget must be a number ≥ 0.'); return; }
-                
-                let cats = [];
-                const keepExisting = keepCheckbox && keepCheckbox.checked;
-                
-                if(keepExisting){
-                    // Use existing categories
-                    cats = state.categories || [];
-                } else {
-                    // Collect manually entered categories
-                    const rows = Array.from(document.getElementById('onboard-cat-list').children).filter(r => r.classList.contains('d-flex'));
-                    for(const r of rows){
-                        const inputs = r.querySelectorAll('input,select');
-                        const name = (inputs[0].value || '').trim();
-                        const limit = Number(inputs[1].value);
-                        const type = inputs[2].value || 'expense';
-                        if(!name){ alert('Category names cannot be empty.'); return; }
-                        if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
-                        cats.push({ name, limit, type });
-                    }
-                }
-                const { resetForNewMonth } = await import('./storage.js');
-                await resetForNewMonth({ month, baseBudget: base, categories: cats });
-                modal.remove();
-                // re-init pages
-                if (window.initDashboard) window.initDashboard();
-                if (window.initTransactions) window.initTransactions();
-                if (window.initSettings) window.initSettings();
-            });
-    })();
+        // Reset to new month and reload pages
+        await resetForNewMonth({ month, baseBudget, categories });
+        modal.remove();
+        
+        if (window.initDashboard) window.initDashboard();
+        if (window.initTransactions) window.initTransactions();
+        if (window.initSettings) window.initSettings();
+    });
 }
 
 // Small modal utility used by pages to show forms/prompts
