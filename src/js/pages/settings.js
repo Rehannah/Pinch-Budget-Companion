@@ -7,9 +7,12 @@ window.initSettings = async function(){
     if(btn) btn.addEventListener('click', async ()=>{
         if(!confirm('Clear all transactions and restart?')) return;
         await clearTransactionsOnly();
-        // Show onboarding modal on current page (dashboard will load after onboarding completes)
-        if(window.showOnboarding) {
-            window.showOnboarding();
+        // Call showOnboarding which should be defined by app.js
+        // If not yet available, wait a tick for app.js to load
+        if(typeof window.showOnboarding === 'function') {
+            await window.showOnboarding();
+        } else {
+            console.error('showOnboarding not available. Make sure app.js loads before settings.js');
         }
     });
 }
