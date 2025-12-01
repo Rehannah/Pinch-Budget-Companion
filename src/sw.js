@@ -1,17 +1,12 @@
-// const CACHE_NAME = 'pinch-cache-v1';
-// const ASSETS = [
-// 	'/', '/dashboard.html', '/transactions.html', '/settings.html',
-// 	'/css/styles.css', '/js/app.js'
-// ];
+// Service worker intentionally simplified to a no-op to disable caching.
+// The original caching behavior was removed to avoid stale assets during development.
 
-// self.addEventListener('install', (e) => {
-// 	e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
-// });
+self.addEventListener('install', (e) => {
+	// Activate immediately
+	self.skipWaiting();
+});
 
-// self.addEventListener('fetch', (e) => {
-// 	e.respondWith(caches.match(e.request).then(resp => resp || fetch(e.request)));
-// });
-
-// self.addEventListener('activate', (e) => {
-// 	e.waitUntil(self.clients.claim());
-// });
+self.addEventListener('activate', (e) => {
+	// Take control of uncontrolled clients as quickly as possible
+	e.waitUntil(self.clients.claim());
+});

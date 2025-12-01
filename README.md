@@ -11,7 +11,6 @@ pinch-budget-companion
 │   ├── transactions.html
 │   ├── settings.html
 │   ├── manifest.json
-│   ├── sw.js
 │   ├── css
 │   │   ├── styles.css
 │   │   └── components.css
