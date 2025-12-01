@@ -1,14 +1,14 @@
 const Header = () => {
     return `
-    <header class="w-100 bg-white border-bottom py-3">
+    <header class="w-100 bg-white border-bottom py-1">
         <div class="container d-flex align-items-center justify-content-between">
-          <a href="dashboard.html" class="text-primary fw-semibold">Pinch</a>
+          <a href="dashboard.html" class="text-logo fw-bold text-decoration-none">Pinch</a>
           <div class="d-flex align-items-center gap-3">
             <!-- Top navigation (visible on small+ screens) -->
             <nav class="d-none d-sm-flex gap-3" aria-label="Main navigation">
-              <a data-nav href="dashboard.html" class="text-muted">Dashboard</a>
-              <a data-nav href="transactions.html" class="text-muted">Transactions</a>
-              <a data-nav href="settings.html" class="text-muted">Settings</a>
+              <a data-nav href="dashboard.html" class="text-muted text-decoration-none">Dashboard</a>
+              <a data-nav href="transactions.html" class="text-muted text-decoration-none">Transactions</a>
+              <a data-nav href="settings.html" class="text-muted text-decoration-none">Settings</a>
             </nav>
           </div>
         </div>
@@ -17,9 +17,9 @@ const Header = () => {
       <!-- Mobile bottom navigation (rendered here so header is the single source of truth) -->
       <nav class="bottom-nav d-block d-md-none position-fixed start-0 end-0 bottom-0 bg-white border-top">
         <div class="container d-flex justify-content-around align-items-center p-2">
-          <a data-nav href="dashboard.html" class="p-3 text-center small">Dashboard</a>
-          <a data-nav href="transactions.html" class="p-3 text-center small">Transactions</a>
-          <a data-nav href="settings.html" class="p-3 text-center small">Settings</a>
+          <a data-nav href="dashboard.html" class="p-3 text-center small text-decoration-none">Dashboard</a>
+          <a data-nav href="transactions.html" class="p-3 text-center small text-decoration-none">Transactions</a>
+          <a data-nav href="settings.html" class="p-3 text-center small text-decoration-none">Settings</a>
         </div>
       </nav>
     `;
