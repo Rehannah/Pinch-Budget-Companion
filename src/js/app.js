@@ -9,15 +9,15 @@ function mountHeader() {
     initHeader();
 }
 
-async function showOnboarding(){
-    console.log('[showOnboarding] called');
+async function showOnboarding(isRestarting = false){
+    console.log('[showOnboarding] called with isRestarting:', isRestarting);
     if(document.getElementById('onboard-modal')) {
         console.log('[showOnboarding] modal already exists, returning');
         return;
     }
     
     const state = await getState();
-    const hasExistingCategories = state && state.categories && state.categories.length > 0;
+    const hasExistingCategories = isRestarting && state && state.categories && state.categories.length > 0;
     console.log('[showOnboarding] hasExistingCategories:', hasExistingCategories);
     
     // Build modal HTML
@@ -27,7 +27,7 @@ async function showOnboarding(){
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
     modal.innerHTML = `
         <div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
-            <h3 class="h5 fw-semibold">Welcome — Setup your month</h3>
+            <h3 class="h5 fw-semibold">${isRestarting ? 'Restart' : 'Welcome'} — Setup your month</h3>
             <div class="mt-3">
                 <label class="form-label small">Month</label>
                 <input id="onboard-month" type="month" class="form-control" />
@@ -139,20 +139,25 @@ async function showOnboarding(){
         const keepExisting = keepCheckbox && keepCheckbox.checked;
 
         if(keepExisting){
+            // Keep existing categories with their limits
             categories = state.categories || [];
+            console.log('[showOnboarding] keeping existing categories:', categories.length);
         } else {
-            // Collect manually entered categories
+            // Either collect new categories or start with empty array
             const rows = Array.from(categoryList.children).filter(r => r.classList.contains('d-flex'));
-            for(const r of rows){
-                const [nameInput, limitInput, typeSelect] = r.querySelectorAll('input,select');
-                const name = (nameInput.value || '').trim();
-                const limit = Number(limitInput.value);
-                const type = typeSelect.value || 'expense';
+            if(rows.length > 0){
+                for(const r of rows){
+                    const [nameInput, limitInput, typeSelect] = r.querySelectorAll('input,select');
+                    const name = (nameInput.value || '').trim();
+                    const limit = Number(limitInput.value);
+                    const type = typeSelect.value || 'expense';
 
-                if(!name){ alert('Category names cannot be empty.'); return; }
-                if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
-                categories.push({ name, limit, type });
+                    if(!name){ alert('Category names cannot be empty.'); return; }
+                    if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
+                    categories.push({ name, limit, type });
+                }
             }
+            console.log('[showOnboarding] starting with new categories:', categories.length);
         }
 
         // Reset to new month and reload pages
@@ -173,10 +178,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const state = await initStorage();
     mountHeader();
 
-    // On first run or after restart (no month set) show onboarding
-    if(!state || !state.meta || !state.meta.month){
-        console.log('[DOMContentLoaded] no month set, showing onboarding');
-        showOnboarding();
+    // Check if we're restarting (came from settings)
+    const isRestarting = sessionStorage.getItem('showOnboardingAfterRestart');
+    sessionStorage.removeItem('showOnboardingAfterRestart'); // Clear the flag
+    
+    // Show onboarding if: first run (no month) OR restarting
+    if(isRestarting || !state || !state.meta || !state.meta.month){
+        console.log('[DOMContentLoaded] showing onboarding (isRestarting:', isRestarting, ')');
+        showOnboarding(isRestarting);
     }
 
     // If page-specific init functions exist, call them.
