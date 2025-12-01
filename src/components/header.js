@@ -1,25 +1,25 @@
 const Header = () => {
     return `
-    <header class="w-full bg-white dark:bg-surface border-b p-3">
-        <div class="max-w-lg mx-auto flex items-center justify-between">
-          <a href="dashboard.html" class="text-primary font-semibold">Pinch</a>
-          <div class="flex items-center gap-3">
+    <header class="w-100 bg-white border-bottom py-3">
+        <div class="container d-flex align-items-center justify-content-between">
+          <a href="dashboard.html" class="text-primary fw-semibold">Pinch</a>
+          <div class="d-flex align-items-center gap-3">
             <!-- Top navigation (visible on small+ screens) -->
-            <nav class="hidden sm:flex gap-3" aria-label="Main navigation">
-              <a data-nav href="dashboard.html" class="text-gray-600 dark:text-gray-300">Dashboard</a>
-              <a data-nav href="transactions.html" class="text-gray-600 dark:text-gray-300">Transactions</a>
-              <a data-nav href="settings.html" class="text-gray-600 dark:text-gray-300">Settings</a>
+            <nav class="d-none d-sm-flex gap-3" aria-label="Main navigation">
+              <a data-nav href="dashboard.html" class="text-muted">Dashboard</a>
+              <a data-nav href="transactions.html" class="text-muted">Transactions</a>
+              <a data-nav href="settings.html" class="text-muted">Settings</a>
             </nav>
           </div>
         </div>
       </header>
 
       <!-- Mobile bottom navigation (rendered here so header is the single source of truth) -->
-      <nav class="bottom-nav block md:hidden fixed inset-x-0 bottom-0 bg-white border-t">
-        <div class="max-w-lg mx-auto flex justify-around items-center p-2">
-          <a data-nav href="dashboard.html" class="p-3 text-center text-sm">Dashboard</a>
-          <a data-nav href="transactions.html" class="p-3 text-center text-sm">Transactions</a>
-          <a data-nav href="settings.html" class="p-3 text-center text-sm">Settings</a>
+      <nav class="bottom-nav d-block d-md-none position-fixed start-0 end-0 bottom-0 bg-white border-top">
+        <div class="container d-flex justify-content-around align-items-center p-2">
+          <a data-nav href="dashboard.html" class="p-3 text-center small">Dashboard</a>
+          <a data-nav href="transactions.html" class="p-3 text-center small">Transactions</a>
+          <a data-nav href="settings.html" class="p-3 text-center small">Settings</a>
         </div>
       </nav>
     `;

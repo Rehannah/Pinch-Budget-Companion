@@ -22,11 +22,11 @@ function attachHandlers(){
 async function showAddCategoryModal(){
     // use global showModal from app.js
     const html = `
-        <div class="space-y-2">
-            <input id="modal-cat-name" class="w-full p-2 border rounded" placeholder="Category name" />
-            <div class="flex gap-2">
-                <input id="modal-cat-limit" class="flex-1 p-2 border rounded" placeholder="Limit (for expense)" />
-                <select id="modal-cat-type" class="p-2 border rounded w-40"><option value="expense">Expense</option><option value="income">Income</option></select>
+        <div class="mb-3">
+            <input id="modal-cat-name" class="form-control mb-2" placeholder="Category name" />
+            <div class="d-flex gap-2">
+                <input id="modal-cat-limit" class="form-control flex-grow-1" placeholder="Limit (for expense)" />
+                <select id="modal-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
             </div>
         </div>
     `;
@@ -61,24 +61,31 @@ function renderDashboard(state){
 
     const cards = document.getElementById('summary-cards');
     cards.innerHTML = `
-        <div class="card text-center p-3">
-            <div class="text-sm text-gray-500">Income</div>
-            <div class="text-lg font-semibold text-success">$${totalIncome.toFixed(2)}</div>
+        <div class="col">
+            <div class="card text-center p-3">
+                <div class="small text-muted">Income</div>
+                <div class="h5 fw-semibold text-success">$${totalIncome.toFixed(2)}</div>
+            </div>
         </div>
-        <div class="card text-center p-3">
-            <div class="text-sm text-gray-500">Expenses</div>
-            <div class="text-lg font-semibold text-danger">$${totalExpense.toFixed(2)}</div>
+        <div class="col">
+            <div class="card text-center p-3">
+                <div class="small text-muted">Expenses</div>
+                <div class="h5 fw-semibold text-danger">$${totalExpense.toFixed(2)}</div>
+            </div>
         </div>
-        <div class="card text-center p-3">
-            <div class="text-sm text-gray-500">Remaining</div>
-            <div class="text-lg font-semibold">$${saved.toFixed(2)}</div>
+        <div class="col">
+            <div class="card text-center p-3">
+                <div class="small text-muted">Remaining</div>
+                <div class="h5 fw-semibold">$${saved.toFixed(2)}</div>
+            </div>
         </div>
     `;
 
-    // progress bar
-    const bar = document.getElementById('spend-bar');
-    if(bar) bar.style.width = `${Math.min(100, spentPercent)}%`;
+    // progress bars: income and expense relative to baseBudget (fallback to relative proportions)
+    // Top-level: only show how much of the base budget is used (spend bar)
+    const spendBar = document.getElementById('spend-bar');
     const percent = document.getElementById('spend-percent');
+    if(spendBar) spendBar.style.width = `${Math.min(100, spentPercent)}%`;
     if(percent) percent.textContent = `${spentPercent}% spent`;
 
     // categories
@@ -94,15 +101,38 @@ function renderDashboard(state){
         const expenseCats = state.categories.filter(c => c.type !== 'income');
 
         // show income categories
+        // show income categories separately with progress bars (use category limit as target if present)
         if(incomeCats.length){
-            const header = document.createElement('h4'); header.className = 'text-sm font-medium'; header.textContent = 'Income categories (earned)';
+            const header = document.createElement('h4'); header.className = 'small fw-semibold'; header.textContent = 'Income categories (earned)';
             incomeListContainer.appendChild(header);
+
+            // compute fallback denominator if no limits present
+            const maxEarned = Math.max(...incomeCats.map(c => {
+                return state.transactions.filter(t=>t.categoryId===c.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+            }), 1);
+
             incomeCats.forEach(cat => {
                 const earned = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-                const item = document.createElement('div');
-                item.className = 'flex items-center justify-between py-2 border-b';
-                item.innerHTML = `<div>${cat.name}<div class="text-xs text-gray-500">Earned</div></div><div class="font-semibold text-success">$${earned.toFixed(2)}</div>`;
-                incomeListContainer.appendChild(item);
+                const target = Number(cat.limit) || 0; // allow limit as income goal
+                let pct = 0;
+                if(target > 0){
+                    pct = Math.min(100, Math.round((earned / target) * 100));
+                } else {
+                    pct = Math.min(100, Math.round((earned / maxEarned) * 100));
+                }
+
+                const li = document.createElement('div');
+                li.className = 'py-2 border-bottom';
+                li.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="fw-medium">${cat.name}<div class="small text-muted">Earned</div></div>
+                        <div class="small text-success fw-semibold">$${earned.toFixed(2)}${target?(' / $'+Number(target).toFixed(2)):''}</div>
+                    </div>
+                    <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
+                        <div class="h-3 bg-success" style="width:${pct}%"></div>
+                    </div>
+                `;
+                incomeListContainer.appendChild(li);
             });
             expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
         }
@@ -114,20 +144,20 @@ function renderDashboard(state){
             const li = document.createElement('li');
             li.className = 'py-3';
             li.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <div class="font-medium">${cat.name}</div>
-                    <div class="text-sm">$${spent.toFixed(2)} / $${Number(cat.limit).toFixed(2)}</div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="fw-medium">${cat.name}</div>
+                    <div class="small">$${spent.toFixed(2)} / $${Number(cat.limit).toFixed(2)}</div>
                 </div>
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded h-3 mt-2 overflow-hidden">
+                <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
                     <div class="h-3 bg-danger" style="width:${pct}%"></div>
                 </div>
             `;
             // add edit/delete buttons for each category
             const actions = document.createElement('div');
-            actions.className = 'flex items-center gap-2';
-            actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="text-sm text-primary">Edit</button><button data-action="delete" data-id="${cat.id}" class="text-sm text-red-600">Delete</button>`;
+            actions.className = 'd-flex align-items-center gap-2';
+            actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button><button data-action="delete" data-id="${cat.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>`;
             // find the top-level flex container we created in innerHTML to append actions
-            const topFlex = li.querySelector('.flex.justify-between') || li.querySelector('.flex');
+            const topFlex = li.querySelector('.d-flex.justify-content-between') || li.querySelector('.d-flex');
             if(topFlex) topFlex.appendChild(actions);
             expenseList.appendChild(li);
         });
@@ -149,11 +179,11 @@ function renderDashboard(state){
                             if(!cat) return;
                             // show modal edit form
                             const html = `
-                                <div class="space-y-2">
-                                    <input id="edit-cat-name" class="w-full p-2 border rounded" value="${cat.name}" />
-                                    <div class="flex gap-2">
-                                        <input id="edit-cat-limit" class="flex-1 p-2 border rounded" value="${cat.limit}" />
-                                        <select id="edit-cat-type" class="p-2 border rounded w-40"><option value="expense">Expense</option><option value="income">Income</option></select>
+                                <div class="mb-3">
+                                    <input id="edit-cat-name" class="form-control mb-2" value="${cat.name}" />
+                                    <div class="d-flex gap-2">
+                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit}" />
+                                        <select id="edit-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
                                     </div>
                                 </div>
                             `;
