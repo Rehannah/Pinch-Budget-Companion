@@ -81,10 +81,11 @@ function renderDashboard(state){
         </div>
     `;
 
-    // progress bar
-    const bar = document.getElementById('spend-bar');
-    if(bar) bar.style.width = `${Math.min(100, spentPercent)}%`;
+    // progress bars: income and expense relative to baseBudget (fallback to relative proportions)
+    // Top-level: only show how much of the base budget is used (spend bar)
+    const spendBar = document.getElementById('spend-bar');
     const percent = document.getElementById('spend-percent');
+    if(spendBar) spendBar.style.width = `${Math.min(100, spentPercent)}%`;
     if(percent) percent.textContent = `${spentPercent}% spent`;
 
     // categories
@@ -100,15 +101,38 @@ function renderDashboard(state){
         const expenseCats = state.categories.filter(c => c.type !== 'income');
 
         // show income categories
-            if(incomeCats.length){
+        // show income categories separately with progress bars (use category limit as target if present)
+        if(incomeCats.length){
             const header = document.createElement('h4'); header.className = 'small fw-semibold'; header.textContent = 'Income categories (earned)';
             incomeListContainer.appendChild(header);
+
+            // compute fallback denominator if no limits present
+            const maxEarned = Math.max(...incomeCats.map(c => {
+                return state.transactions.filter(t=>t.categoryId===c.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+            }), 1);
+
             incomeCats.forEach(cat => {
                 const earned = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-                const item = document.createElement('div');
-                item.className = 'd-flex align-items-center justify-content-between py-2 border-bottom';
-                item.innerHTML = `<div>${cat.name}<div class="small text-muted">Earned</div></div><div class="fw-semibold text-success">$${earned.toFixed(2)}</div>`;
-                incomeListContainer.appendChild(item);
+                const target = Number(cat.limit) || 0; // allow limit as income goal
+                let pct = 0;
+                if(target > 0){
+                    pct = Math.min(100, Math.round((earned / target) * 100));
+                } else {
+                    pct = Math.min(100, Math.round((earned / maxEarned) * 100));
+                }
+
+                const li = document.createElement('div');
+                li.className = 'py-2 border-bottom';
+                li.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="fw-medium">${cat.name}<div class="small text-muted">Earned</div></div>
+                        <div class="small text-success fw-semibold">$${earned.toFixed(2)}${target?(' / $'+Number(target).toFixed(2)):''}</div>
+                    </div>
+                    <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
+                        <div class="h-3 bg-success" style="width:${pct}%"></div>
+                    </div>
+                `;
+                incomeListContainer.appendChild(li);
             });
             expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
         }
