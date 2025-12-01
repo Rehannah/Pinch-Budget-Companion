@@ -153,6 +153,51 @@ function attachForm(){
                                 renderExtra();
                             });
                         }
+                
+                // Check if total expenses would exceed budget base
+                const state2 = await getState();
+                const totalExpense = state2.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+                const baseBudget = Number(state2.meta.baseBudget || 0);
+                const wouldExceedBase = (totalExpense + amount) > baseBudget;
+                
+                if(baseBudget > 0 && wouldExceedBase){
+                    const excess = (totalExpense + amount) - baseBudget;
+                    const html = `
+                        <div class="mb-2">
+                            <p class="small">Total expenses would exceed Budget Base by $${excess.toFixed(2)}.</p>
+                            <p class="small text-muted">Current Budget Base: $${baseBudget.toFixed(2)} | Current Total Expense: $${totalExpense.toFixed(2)}</p>
+                            <div>
+                                <label class="form-label small">Do you want to increase Budget Base or cancel?</label>
+                                <select id="base-action" class="form-select">
+                                    <option value="increase">Increase base budget</option>
+                                    <option value="cancel">Cancel this transaction</option>
+                                </select>
+                            </div>
+                            <div id="base-extra" class="mt-2"></div>
+                        </div>
+                    `;
+                    await new Promise(resolve => {
+                        window.showModal({ title: 'Budget Base would be exceeded', html, saveText: 'Proceed', onSave: async ()=>{
+                            const action = document.getElementById('base-action').value;
+                            if(action === 'cancel'){ resolve(); return; }
+                            if(action === 'increase'){
+                                const inc = parseFloat(document.getElementById('base-extra-input')?.value) || 0;
+                                if(inc>0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(st)); }
+                            }
+                            resolve();
+                        }, onCancel: ()=> resolve() });
+                        
+                        const actionEl = document.getElementById('base-action');
+                        const extra = document.getElementById('base-extra');
+                        function renderExtra(){
+                            if(actionEl.value === 'increase'){
+                                extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="base-extra-input" type="number" class="form-control" value="${excess.toFixed(2)}" />`;
+                            } else { extra.innerHTML = '' }
+                        }
+                        actionEl.addEventListener('change', renderExtra);
+                        renderExtra();
+                    });
+                }
             }
 
             const tx = await addTransaction({ date, amount, categoryId, type, description });

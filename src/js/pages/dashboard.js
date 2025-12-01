@@ -1,31 +1,73 @@
-import { getState, addCategory, updateCategory } from '../storage.js';
+import { getState, addCategory, updateCategory, updateCategoryLimit } from '../storage.js';
 
 // Dashboard page initializer — exposes global initDashboard for app.js to call.
 window.initDashboard = async function() {
     const state = await getState();
     renderDashboard(state);
-    attachHandlers();
+    attachHandlers(state);
 }
 
-function attachHandlers(){
+function attachHandlers(state){
     const addBtn = document.getElementById('add-category-btn');
-    const quickAdd = document.getElementById('quick-add');
+    const editBaseBtn = document.getElementById('edit-base');
+    const editMonthBtn = document.getElementById('edit-month');
 
     if(addBtn){
-                addBtn.addEventListener('click', () => showAddCategoryModal());
+        addBtn.addEventListener('click', () => showAddCategoryModal());
     }
-    if(quickAdd){
-        quickAdd.addEventListener('click', () => alert('Quick add: choose a JSON file in Settings to import categories.'));
+    
+    if(editBaseBtn){
+        editBaseBtn.addEventListener('click', () => showEditBaseModal(state));
     }
+
+    if(editMonthBtn){
+        editMonthBtn.addEventListener('click', () => showEditMonthModal(state));
+    }
+}
+
+async function showEditBaseModal(state){
+    const html = `
+        <div class="mb-3">
+            <label class="form-label small">Base Budget</label>
+            <input id="modal-base" type="number" step="0.01" class="form-control" value="${Number(state.meta.baseBudget || 0).toFixed(2)}" />
+        </div>
+    `;
+    window.showModal({ title: 'Edit Budget Base', html, saveText: 'Save', onSave: async ()=>{
+        const newBase = parseFloat(document.getElementById('modal-base').value);
+        if(Number.isNaN(newBase) || newBase < 0){ alert('Budget must be a number ≥ 0.'); return false; }
+        const { saveState } = await import('../storage.js');
+        state.meta.baseBudget = newBase;
+        await saveState(state);
+        const s = await getState();
+        renderDashboard(s);
+    }});
+}
+
+async function showEditMonthModal(state){
+    const html = `
+        <div class="mb-3">
+            <label class="form-label small">Month (YYYY-MM)</label>
+            <input id="modal-month" type="text" class="form-control" placeholder="e.g. 2025-11" value="${state.meta.month || ''}" />
+        </div>
+    `;
+    window.showModal({ title: 'Edit Month', html, saveText: 'Save', onSave: async ()=>{
+        const newMonth = document.getElementById('modal-month').value.trim();
+        const monthRegex = /^\d{4}-\d{2}$/;
+        if(!newMonth || !monthRegex.test(newMonth)){ alert('Month must be in YYYY-MM format.'); return false; }
+        const { saveState } = await import('../storage.js');
+        state.meta.month = newMonth;
+        await saveState(state);
+        const s = await getState();
+        renderDashboard(s);
+    }});
 }
 
 async function showAddCategoryModal(){
-    // use global showModal from app.js
     const html = `
         <div class="mb-3">
             <input id="modal-cat-name" class="form-control mb-2" placeholder="Category name" />
             <div class="d-flex gap-2">
-                <input id="modal-cat-limit" class="form-control flex-grow-1" placeholder="Limit (for expense)" />
+                <input id="modal-cat-limit" class="form-control flex-grow-1" placeholder="Limit (optional for income)" />
                 <select id="modal-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
             </div>
         </div>
@@ -34,6 +76,7 @@ async function showAddCategoryModal(){
         const name = document.getElementById('modal-cat-name').value || 'Unnamed';
         const limit = parseFloat(document.getElementById('modal-cat-limit').value) || 0;
         const type = document.getElementById('modal-cat-type').value || 'expense';
+        if(!name.trim()){ alert('Category name cannot be empty.'); return false; }
         await addCategory({ name, limit, type });
         const s = await getState(); renderDashboard(s);
     }});
@@ -114,6 +157,7 @@ function renderDashboard(state){
             incomeCats.forEach(cat => {
                 const earned = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
                 const target = Number(cat.limit) || 0; // allow limit as income goal
+                const remaining = Math.max(0, target - earned);
                 let pct = 0;
                 if(target > 0){
                     pct = Math.min(100, Math.round((earned / target) * 100));
@@ -125,8 +169,11 @@ function renderDashboard(state){
                 li.className = 'py-2 border-bottom';
                 li.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center">
-                        <div class="fw-medium">${cat.name}<div class="small text-muted">Earned</div></div>
-                        <div class="small text-success fw-semibold">$${earned.toFixed(2)}${target?(' / $'+Number(target).toFixed(2)):''}</div>
+                        <div>
+                            <div class="fw-medium">${cat.name}</div>
+                            <div class="small text-muted">Earned: $${earned.toFixed(2)}${target ? ` | Remaining: $${remaining.toFixed(2)}` : ''}</div>
+                        </div>
+                        <div class="small text-success fw-semibold">${target ? '$' + Number(target).toFixed(2) + ' target' : 'No target'}</div>
                     </div>
                     <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
                         <div class="h-3 bg-success" style="width:${pct}%"></div>
@@ -137,30 +184,34 @@ function renderDashboard(state){
             expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
         }
 
-    // show expense categories with bars
+    // show expense categories with bars and remaining balance
     expenseCats.forEach(cat => {
-            const spent = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
-            const pct = cat.limit > 0 ? Math.min(100, Math.round((spent / cat.limit) * 100)) : 0;
-            const li = document.createElement('li');
-            li.className = 'py-3';
-            li.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
+        const spent = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+        const remaining = Math.max(0, Number(cat.limit) - spent);
+        const pct = cat.limit > 0 ? Math.min(100, Math.round((spent / cat.limit) * 100)) : 0;
+        const li = document.createElement('li');
+        li.className = 'py-3';
+        li.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
                     <div class="fw-medium">${cat.name}</div>
-                    <div class="small">$${spent.toFixed(2)} / $${Number(cat.limit).toFixed(2)}</div>
+                    <div class="small text-muted">Spent: $${spent.toFixed(2)} | Remaining: $${remaining.toFixed(2)}</div>
                 </div>
-                <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
-                    <div class="h-3 bg-danger" style="width:${pct}%"></div>
+                <div class="small">
+                    <div class="fw-semibold">$${cat.limit.toFixed(2)} limit</div>
                 </div>
-            `;
-            // add edit/delete buttons for each category
-            const actions = document.createElement('div');
-            actions.className = 'd-flex align-items-center gap-2';
-            actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button><button data-action="delete" data-id="${cat.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>`;
-            // find the top-level flex container we created in innerHTML to append actions
-            const topFlex = li.querySelector('.d-flex.justify-content-between') || li.querySelector('.d-flex');
-            if(topFlex) topFlex.appendChild(actions);
-            expenseList.appendChild(li);
-        });
+            </div>
+            <div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
+                <div class="h-100 ${pct > 100 ? 'bg-danger' : 'bg-warning'}" style="width:${Math.min(100, pct)}%"></div>
+            </div>
+        `;
+        // add edit/delete buttons for each category
+        const actions = document.createElement('div');
+        actions.className = 'd-flex align-items-center gap-2 mt-2';
+        actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button><button data-action="delete" data-id="${cat.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>`;
+        li.appendChild(actions);
+        expenseList.appendChild(li);
+    });
 
             // attach edit/delete handlers for categories
         expenseList.querySelectorAll('button[data-action]').forEach(btn=>{
