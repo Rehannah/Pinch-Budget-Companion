@@ -1,11 +1,9 @@
 :root {
-  --primary: #9b7cff;
+  --primary: #8b5cf6;
   --success: #34d399;
   --danger: #ff8b94;
-  --surface: #9b7cff;
+  --surface: #7e6cbb;
 }
-
-/* Minimal custom styles. Converted from Tailwind to Bootstrap; custom variables remain. */
 
 /* Dark theme variables */
 :root.dark,
@@ -56,6 +54,11 @@ body {
   color: var(--primary) !important
 }
 
+.text-logo {
+  color: var(--primary) !important;
+  font-size: 2rem;
+}
+
 .bg-primary {
   background-color: var(--primary);
   color: #fff
@@ -90,7 +93,6 @@ body {
   color: var(--text-color)
 }
 
-/* Make Tailwind's bg-white respond to dark mode so existing markup flips as expected */
 .bg-white {
   background-color: #ffffff
 }
