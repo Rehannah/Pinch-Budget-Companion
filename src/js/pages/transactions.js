@@ -98,7 +98,7 @@ function attachForm(){
                         }, onCancel: ()=> resolve() });
                     });
                 }
-                if(!categoryId){ window.showModal({ title: 'Missing category', html: '<p class="text-sm">Please choose or create a category.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
+                if(!categoryId){ window.showModal({ title: 'Missing category', html: '<p class="small">Please choose or create a category.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
             // Check category limit for expense
             if(type==='expense'){
                 const state = await getState();

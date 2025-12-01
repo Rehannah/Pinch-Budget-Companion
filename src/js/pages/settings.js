@@ -66,6 +66,10 @@ window.initSettings = async function(){
                     <input id="restart-month" type="month" class="form-control" />
                     <label class="form-label small mt-2">Base budget</label>
                     <input id="restart-base" type="number" class="form-control" />
+                    <div class="form-check mt-2 mb-2">
+                        <input class="form-check-input me-2" type="checkbox" id="restart-keep-cats" />
+                        <label class="form-check-label small" for="restart-keep-cats">Keep existing categories (do not replace)</label>
+                    </div>
                     <label class="form-label small mt-2">Add initial categories (optional)</label>
                     <div id="restart-cat-list" class="mt-2"></div>
                     <button id="restart-add-cat" class="btn btn-link small text-primary">+ Add category</button>
@@ -84,17 +88,23 @@ window.initSettings = async function(){
                     alert('Base budget must be a number ≥ 0.');
                     return false;
                 }
-                const rows = Array.from(document.getElementById('restart-cat-list').children || []);
-                const cats = [];
-                for(const r of rows){
-                    const inputs = r.querySelectorAll('input,select');
-                    const name = (inputs[0].value || '').trim();
-                    const limitRaw = inputs[1].value;
-                    const limit = limitRaw === '' ? NaN : Number(limitRaw);
-                    const type = inputs[2].value || 'expense';
-                    if(!name){ alert('Category names cannot be empty.'); return false; }
-                    if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return false; }
-                    cats.push({ name, limit, type });
+                const keepExisting = document.getElementById('restart-keep-cats').checked;
+                let cats = [];
+                if(keepExisting){
+                    const st = await getState();
+                    cats = st.categories || [];
+                } else {
+                    const rows = Array.from(document.getElementById('restart-cat-list').children || []);
+                    for(const r of rows){
+                        const inputs = r.querySelectorAll('input,select');
+                        const name = (inputs[0].value || '').trim();
+                        const limitRaw = inputs[1].value;
+                        const limit = limitRaw === '' ? NaN : Number(limitRaw);
+                        const type = inputs[2].value || 'expense';
+                        if(!name){ alert('Category names cannot be empty.'); return false; }
+                        if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return false; }
+                        cats.push({ name, limit, type });
+                    }
                 }
                 await resetForNewMonth({ month, baseBudget: base, categories: cats });
                 // re-init pages so UI reflects the new month/state
