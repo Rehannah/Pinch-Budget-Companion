@@ -28,10 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tryAutoExport(s);
     });
 
-        // register service worker for PWA (best-effort)
-        if('serviceWorker' in navigator){
-            try{ navigator.serviceWorker.register('/sw.js'); }catch(e){ console.warn('SW register failed', e); }
-        }
+        // Service worker registration removed to avoid caching during development
 
     // If page-specific init functions exist, call them.
     if (window.initDashboard) window.initDashboard();
