@@ -1,7 +1,6 @@
 // App bootstrap (ES module). Mounts header and initializes storage and current page script.
 import Header, { initHeader } from '../components/header.js';
 import { initStorage, getState } from './storage.js';
-// Removed CSS import to run without a bundler.
 
 function mountHeader() {
     const el = document.getElementById('app-header');
@@ -15,9 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const state = await initStorage();
     mountHeader();
 
-    // Note: dark mode toggle removed per user request. Theme-related CSS remains.
-
-    // On first run (no month set) show onboarding
+    // On first run or restart (no month set) show onboarding
     if(!state || !state.meta || !state.meta.month){
         showOnboarding();
     }
@@ -28,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tryAutoExport(s);
     });
 
-        // Service worker registration removed to avoid caching during development
+    // Service worker registration removed to avoid caching during development
 
     // If page-specific init functions exist, call them.
     if (window.initDashboard) window.initDashboard();
@@ -36,21 +33,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.initSettings) window.initSettings();
 });
 
-async function tryAutoExport(state){
-    if(!state || !state.meta) return;
-    if(state.meta.saveLocation === 'download' && state.meta.autoSaveToFile){
-        // trigger a download of the JSON backup
-        const filename = `pinch-backup-${(state.meta.month||'unspecified')}-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
-        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
-    }
-}
 
 function showOnboarding(){
     // Simple modal injected into DOM to collect month/base/categories
@@ -59,7 +41,12 @@ function showOnboarding(){
     modal.id = 'onboard-modal';
     modal.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-4';
     modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
-        // Friendly onboarding: allow adding categories with a small form list
+    
+    // Fetch current state to check for existing categories
+    (async () => {
+        const state = await getState();
+        const hasExistingCategories = state && state.categories && state.categories.length > 0;
+
         modal.innerHTML = `
             <div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
                 <h3 class="h5 fw-semibold">Welcome — Setup your month</h3>
@@ -68,6 +55,13 @@ function showOnboarding(){
                     <input id="onboard-month" type="month" class="form-control" />
                     <label class="form-label small mt-2">Base budget</label>
                     <input id="onboard-base" type="number" step="0.01" class="form-control" placeholder="0.00" />
+
+                    ${hasExistingCategories ? `
+                    <div class="form-check mt-2 mb-2">
+                        <input class="form-check-input" type="checkbox" id="onboard-keep-cats" checked />
+                        <label class="form-check-label small" for="onboard-keep-cats">Keep existing categories</label>
+                    </div>
+                    ` : ''}
 
                     <div class="mt-3">
                         <div class="d-flex align-items-center justify-content-between">
@@ -104,7 +98,40 @@ function showOnboarding(){
             document.getElementById('onboard-cat-list').appendChild(row);
         }
 
-        document.getElementById('onboard-add-cat').addEventListener('click', ()=> addCatRow());
+        // If restarting with "keep categories" checked, manage category input based on checkbox
+        const keepCheckbox = document.getElementById('onboard-keep-cats');
+        const categoriesInput = document.getElementById('onboard-cat-list');
+        
+        if(keepCheckbox) {
+            keepCheckbox.addEventListener('change', ()=>{
+                if(keepCheckbox.checked){
+                    // Show existing categories for reference
+                    categoriesInput.innerHTML = '';
+                    state.categories.forEach(cat => {
+                        const label = document.createElement('div');
+                        label.className = 'small p-2 bg-light rounded mb-2';
+                        label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
+                        categoriesInput.appendChild(label);
+                    });
+                } else {
+                    // Clear to allow custom category entry
+                    categoriesInput.innerHTML = '';
+                }
+            });
+            // Initialize with existing categories if checkbox is checked
+            if(keepCheckbox.checked){
+                state.categories.forEach(cat => {
+                    const label = document.createElement('div');
+                    label.className = 'small p-2 bg-light rounded mb-2';
+                    label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
+                    categoriesInput.appendChild(label);
+                });
+            }
+        }
+
+        document.getElementById('onboard-add-cat').addEventListener('click', ()=> {
+            if(!keepCheckbox || !keepCheckbox.checked) addCatRow();
+        });
         document.getElementById('onboard-skip').addEventListener('click', ()=>{ modal.remove(); });
         document.getElementById('onboard-save').addEventListener('click', async ()=>{
                 const month = document.getElementById('onboard-month').value || null;
@@ -112,16 +139,25 @@ function showOnboarding(){
                 // basic validation
                 if(!month){ alert('Please choose a month to continue.'); return; }
                 if(Number.isNaN(base) || base < 0){ alert('Base budget must be a number ≥ 0.'); return; }
-                const rows = Array.from(document.getElementById('onboard-cat-list').children);
-                const cats = [];
-                for(const r of rows){
-                    const inputs = r.querySelectorAll('input,select');
-                    const name = (inputs[0].value || '').trim();
-                    const limit = Number(inputs[1].value);
-                    const type = inputs[2].value || 'expense';
-                    if(!name){ alert('Category names cannot be empty.'); return; }
-                    if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
-                    cats.push({ name, limit, type });
+                
+                let cats = [];
+                const keepExisting = keepCheckbox && keepCheckbox.checked;
+                
+                if(keepExisting){
+                    // Use existing categories
+                    cats = state.categories || [];
+                } else {
+                    // Collect manually entered categories
+                    const rows = Array.from(document.getElementById('onboard-cat-list').children).filter(r => r.classList.contains('d-flex'));
+                    for(const r of rows){
+                        const inputs = r.querySelectorAll('input,select');
+                        const name = (inputs[0].value || '').trim();
+                        const limit = Number(inputs[1].value);
+                        const type = inputs[2].value || 'expense';
+                        if(!name){ alert('Category names cannot be empty.'); return; }
+                        if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
+                        cats.push({ name, limit, type });
+                    }
                 }
                 const { resetForNewMonth } = await import('./storage.js');
                 await resetForNewMonth({ month, baseBudget: base, categories: cats });
@@ -131,6 +167,7 @@ function showOnboarding(){
                 if (window.initTransactions) window.initTransactions();
                 if (window.initSettings) window.initSettings();
             });
+    })();
 }
 
 // Small modal utility used by pages to show forms/prompts

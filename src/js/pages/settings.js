@@ -1,15 +1,15 @@
-// This file contains the logic for the settings page, including functions for exporting and importing data.
+// This file contains the logic for the settings page.
 
-import { clearAllData, resetForNewMonth, getState } from '../storage.js';
+import { clearTransactionsOnly, getState } from '../storage.js';
 
 window.initSettings = async function(){
-    // Simple restart: clear all stored data and reload so onboarding runs again
+    // Restart: clear transactions and redirect to dashboard where onboarding will show
     const btn = document.getElementById('restart-app');
     if(btn) btn.addEventListener('click', async ()=>{
-        if(!confirm('This will remove all app data and restart. Are you sure?')) return;
-        await clearAllData();
-        // reload so app.js will run initStorage and show onboarding when no month is set
-        window.location.reload();
+        if(!confirm('Clear all transactions and restart? You can keep or change categories on the next page.')) return;
+        await clearTransactionsOnly();
+        // redirect to dashboard so onboarding shows there
+        window.location.href = 'dashboard.html';
     });
 
     // show some info about current state

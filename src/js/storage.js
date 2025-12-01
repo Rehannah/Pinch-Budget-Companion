@@ -53,14 +53,29 @@ async function setAutoSaveToFile(enabled = false){
 }
 
 async function resetForNewMonth({ month, baseBudget, categories } = {}) {
-    // categories optional array of {name, limit}
+    // Reset for new month: set month/baseBudget and clear transactions; optionally replace categories
+    const state = await getState();
     const newState = {
-        meta: { month: month || null, baseBudget: baseBudget || 0, saveLocation: 'local', autoSaveToFile: false, darkMode: false },
-        categories: (categories || []).map((c, i) => ({ id: `c${Date.now()}_${i}`, name: c.name, limit: Number(c.limit || 0), type: c.type || 'expense' })),
+        meta: {
+            ...state.meta,
+            month: month || null,
+            baseBudget: Number(baseBudget || 0)
+        },
+        categories: (categories && categories.length > 0)
+            ? categories.map((c, i) => ({ id: `c${Date.now()}_${i}`, name: c.name, limit: Number(c.limit || 0), type: c.type || 'expense' }))
+            : state.categories, // preserve existing categories if not provided
         transactions: []
     };
     await saveState(newState);
     return newState;
+}
+
+async function clearTransactionsOnly() {
+    // Clear only transactions; preserve categories, month, and budget for restart flow
+    const state = await getState();
+    state.transactions = [];
+    await saveState(state);
+    return state;
 }
 
 // Category helpers
@@ -140,46 +155,6 @@ async function transferBetweenCategories(fromCategoryId, toCategoryId, amount) {
     return { from, to };
 }
 
-// Export / Import
-async function exportJSON() {
-    const state = await getState();
-    return JSON.stringify(state, null, 2);
-}
-
-async function exportCSV() {
-    const state = await getState();
-    // Very small CSV exporter: transactions only. Columns: date,amount,type,category,description
-    const header = ['date','amount','type','category','description'];
-    const lines = [header.join(',')];
-    function fmt(d){
-        if(!d) return '';
-        const dt = new Date(d);
-        if(!isNaN(dt)){
-            const dd = String(dt.getDate()).padStart(2,'0');
-            const mm = String(dt.getMonth()+1).padStart(2,'0');
-            const yyyy = dt.getFullYear();
-            return `${dd}-${mm}-${yyyy}`;
-        }
-        // fallback if already yyyy-mm-dd
-        const parts = String(d).split('-');
-        if(parts.length>=3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        return d;
-    }
-    for (const t of state.transactions) {
-        const cat = state.categories.find(c => c.id === t.categoryId);
-        const row = [fmt(t.date), t.amount, t.type, (cat && cat.name) || '', `"${(t.description||'').replace(/"/g,'""')}"`];
-        lines.push(row.join(','));
-    }
-    return lines.join('\n');
-}
-
-async function importJSON(json) {
-    const parsed = typeof json === 'string' ? JSON.parse(json) : json;
-    // Basic validation could go here
-    await saveState(parsed);
-    return parsed;
-}
-
 async function clearAllData() {
     await storage.clear();
 }
@@ -189,6 +164,7 @@ export {
     getState,
     saveState,
     resetForNewMonth,
+    clearTransactionsOnly,
     addCategory,
     removeCategory,
     updateCategoryLimit,
@@ -197,9 +173,6 @@ export {
     editTransaction,
     deleteTransaction,
     transferBetweenCategories,
-    exportJSON,
-    exportCSV,
-    importJSON,
     clearAllData,
     setSaveLocation,
     setAutoSaveToFile
