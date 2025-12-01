@@ -12,10 +12,10 @@ const DEFAULT_STATE = {
         darkMode: false
     },
     categories: [
-        // { id, name, limit, type: 'expense'|'income' }
+        { id, name, limit, type: 'expense'|'income' }
     ],
     transactions: [
-        // { id, date, amount, categoryId, type: 'income'|'expense', description }
+        { id, date, amount, categoryId, type: 'income'|'expense', description }
     ]
 };
 

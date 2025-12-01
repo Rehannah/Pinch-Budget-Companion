@@ -5,11 +5,7 @@
   --surface: #9b7cff;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Minimal custom styles — Tailwind handles the layout. */
+/* Minimal custom styles. Converted from Tailwind to Bootstrap; custom variables remain. */
 
 /* Dark theme variables */
 :root.dark,

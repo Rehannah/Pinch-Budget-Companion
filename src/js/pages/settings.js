@@ -26,14 +26,17 @@ window.initSettings = async function(){
     const saveSelect = document.createElement('div');
     saveSelect.className = 'mt-4';
     saveSelect.innerHTML = `
-        <label class="block text-sm mb-1">Save location</label>
-        <select id="save-location" class="w-full p-2 border rounded">
+        <label class="form-label small mb-1">Save location</label>
+        <select id="save-location" class="form-select">
             <option value="local">Device (IndexedDB)</option>
             <option value="download">Download (file)</option>
         </select>
-        <label class="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" id="autosave-file"/> Auto-save to file when data changes</label>
+        <div class="form-check mt-2">
+            <input class="form-check-input me-2" type="checkbox" id="autosave-file"/>
+            <label class="form-check-label small" for="autosave-file">Auto-save to file when data changes</label>
+        </div>
     `;
-    document.querySelector('main .max-w-lg').appendChild(saveSelect);
+    document.querySelector('main .container').appendChild(saveSelect);
 
         const saveEl = document.getElementById('save-location');
         const autoEl = document.getElementById('autosave-file');
@@ -58,14 +61,14 @@ window.initSettings = async function(){
         document.getElementById('restart-app').addEventListener('click', async ()=>{
             // friendly modal to collect month/base and optional categories (reuse onboarding pattern)
             const html = `
-                <div class="space-y-2">
-                    <label class="block text-sm">Month</label>
-                    <input id="restart-month" type="month" class="w-full p-2 border rounded" />
-                    <label class="block text-sm">Base budget</label>
-                    <input id="restart-base" type="number" class="w-full p-2 border rounded" />
-                    <label class="block text-sm">Add initial categories (optional)</label>
-                    <div id="restart-cat-list" class="space-y-2"></div>
-                    <button id="restart-add-cat" class="text-sm text-primary">+ Add category</button>
+                <div>
+                    <label class="form-label small">Month</label>
+                    <input id="restart-month" type="month" class="form-control" />
+                    <label class="form-label small mt-2">Base budget</label>
+                    <input id="restart-base" type="number" class="form-control" />
+                    <label class="form-label small mt-2">Add initial categories (optional)</label>
+                    <div id="restart-cat-list" class="mt-2"></div>
+                    <button id="restart-add-cat" class="btn btn-link small text-primary">+ Add category</button>
                 </div>
             `;
             // Use showModal and validate inputs in onSave; return false to keep modal open when validation fails
@@ -99,13 +102,13 @@ window.initSettings = async function(){
                 if (window.initTransactions) window.initTransactions();
                 if (window.initSettings) window.initSettings();
                 // show a friendly confirmation (modal will close now)
-                window.showModal({ title: 'Restarted', html: '<p class="text-sm">App restarted for ' + month + '.</p>', saveText: 'OK', onSave: ()=>{} });
+                window.showModal({ title: 'Restarted', html: '<p class="small">App restarted for ' + month + '.</p>', saveText: 'OK', onSave: ()=>{} });
             }, onCancel: ()=>{}});
             // small helper to add rows
             function addRestartRow(name='', limit='', type='expense'){
                 const row = document.createElement('div');
-                row.className = 'flex gap-2 items-center';
-                row.innerHTML = `<input class="flex-1 p-2 border rounded" placeholder="Category name" value="${name}" /><input class="w-24 p-2 border rounded" value="${limit}" /><select class="p-2 border rounded w-40"><option value="expense" ${type==='expense'?'selected':''}>Expense</option><option value="income" ${type==='income'?'selected':''}>Income</option></select><button class="text-red-500">Remove</button>`;
+                row.className = 'd-flex gap-2 align-items-center mb-2';
+                row.innerHTML = `<input class="form-control flex-grow-1" placeholder="Category name" value="${name}" /><input class="form-control" style="width:6rem" value="${limit}" /><select class="form-select" style="width:8rem"><option value="expense" ${type==='expense'?'selected':''}>Expense</option><option value="income" ${type==='income'?'selected':''}>Income</option></select><button class="btn btn-link text-danger p-0">Remove</button>`;
                 const remove = row.querySelector('button'); remove.addEventListener('click', ()=>row.remove());
                 document.getElementById('restart-cat-list').appendChild(row);
             }
@@ -120,9 +123,9 @@ window.initSettings = async function(){
 
         // Add XLSX export button (loads SheetJS on demand)
         const xlsxBtn = document.createElement('button');
-        xlsxBtn.className = 'w-full bg-white border py-2 rounded';
+        xlsxBtn.className = 'btn btn-outline-secondary w-100 mb-2';
         xlsxBtn.textContent = 'Export .xlsx (Excel)';
-        document.querySelector('main .max-w-lg').appendChild(xlsxBtn);
+        document.querySelector('main .container').appendChild(xlsxBtn);
         xlsxBtn.addEventListener('click', async ()=>{
             // load SheetJS dynamically
             if(!window.XLSX){
@@ -144,8 +147,8 @@ window.initSettings = async function(){
 
         // File System Access API: choose file handle and save
         const fsDiv = document.createElement('div'); fsDiv.className = 'mt-4';
-        fsDiv.innerHTML = `<button id="choose-save-file" class="w-full bg-white border py-2 rounded">Choose save file (optional)</button><button id="save-to-file" class="w-full bg-white border py-2 rounded mt-2">Save now to chosen file</button>`;
-        document.querySelector('main .max-w-lg').appendChild(fsDiv);
+        fsDiv.innerHTML = `<button id="choose-save-file" class="btn btn-outline-secondary w-100">Choose save file (optional)</button><button id="save-to-file" class="btn btn-outline-secondary w-100 mt-2">Save now to chosen file</button>`;
+        document.querySelector('main .container').appendChild(fsDiv);
         const chooseBtn = document.getElementById('choose-save-file');
         const saveBtn = document.getElementById('save-to-file');
         let _fileHandle = (state.meta && state.meta.fileHandle) ? state.meta.fileHandle : null;

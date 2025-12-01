@@ -28,11 +28,11 @@ async function populateCategories(){
         if(sel.value === '__add_new__'){
                         // open modal to create category with type and optional limit
                         const html = `
-                            <div class="space-y-2">
-                                <input id="new-cat-name" class="w-full p-2 border rounded" placeholder="Category name" />
-                                <div class="flex gap-2">
-                                    <input id="new-cat-limit" class="flex-1 p-2 border rounded" placeholder="Limit (for expense)" />
-                                    <select id="new-cat-type" class="p-2 border rounded w-40"><option value="expense">Expense</option><option value="income">Income</option></select>
+                            <div class="mb-3">
+                                <input id="new-cat-name" class="form-control mb-2" placeholder="Category name" />
+                                <div class="d-flex gap-2">
+                                    <input id="new-cat-limit" class="form-control flex-grow-1" placeholder="Limit (for expense)" />
+                                    <select id="new-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
                                 </div>
                             </div>
                         `;
@@ -67,20 +67,20 @@ function attachForm(){
     const amountRaw = document.getElementById('transaction-amount').value;
     const amount = amountRaw === '' ? NaN : Number(amountRaw);
     // basic validation
-    if(Number.isNaN(amount) || amount <= 0){ window.showModal({ title: 'Invalid amount', html: '<p class="text-sm">Please enter an amount greater than 0.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
-    if(!date){ window.showModal({ title: 'Invalid date', html: '<p class="text-sm">Please choose a date for the transaction.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
+    if(Number.isNaN(amount) || amount <= 0){ window.showModal({ title: 'Invalid amount', html: '<p class="small">Please enter an amount greater than 0.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
+    if(!date){ window.showModal({ title: 'Invalid date', html: '<p class="small">Please choose a date for the transaction.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
                 if(!categoryId || categoryId === '__no_cat__'){
                     // ask user to create a category first
                     await new Promise(resolve => {
-                        const html = `<div class="space-y-2"><p class="text-sm">No categories yet. Create one now.</p></div>`;
+                        const html = `<div class="mb-2"><p class="small">No categories yet. Create one now.</p></div>`;
                         window.showModal({ title: 'Create category', html, saveText: 'Create', onSave: async ()=>{
                             // open the add category modal
                             const addHtml = `
-                                <div class="space-y-2">
-                                    <input id="new-cat-name" class="w-full p-2 border rounded" placeholder="Category name" />
-                                    <div class="flex gap-2">
-                                        <input id="new-cat-limit" class="flex-1 p-2 border rounded" placeholder="Limit (for expense)" />
-                                        <select id="new-cat-type" class="p-2 border rounded w-40"><option value="expense">Expense</option><option value="income">Income</option></select>
+                                <div class="mb-3">
+                                    <input id="new-cat-name" class="form-control mb-2" placeholder="Category name" />
+                                    <div class="d-flex gap-2">
+                                        <input id="new-cat-limit" class="form-control flex-grow-1" placeholder="Limit (for expense)" />
+                                        <select id="new-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
                                     </div>
                                 </div>`;
                             await new Promise(res2 => {
@@ -110,17 +110,17 @@ function attachForm(){
                             const s = await getState();
                             const otherCats = s.categories.filter(c=>c.id !== cat.id && c.type!=='income');
                             const optionsHtml = `
-                                <div class="space-y-2">
-                                    <p class="text-sm">Category <strong>${cat.name}</strong> limit: $${cat.limit}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
+                                <div class="mb-2">
+                                    <p class="small">Category <strong>${cat.name}</strong> limit: $${cat.limit}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
                                     <div>
-                                        <label class="block text-sm">Choose action</label>
-                                        <select id="transfer-action" class="w-full p-2 border rounded">
+                                        <label class="form-label small">Choose action</label>
+                                        <select id="transfer-action" class="form-select">
                                             <option value="transfer">Transfer from another category</option>
                                             <option value="increase">Increase base budget</option>
                                             <option value="cancel">Cancel</option>
                                         </select>
                                     </div>
-                                    <div id="transfer-extra"></div>
+                                    <div id="transfer-extra" class="mt-2"></div>
                                 </div>
                             `;
                             await new Promise(resolve => {
@@ -144,9 +144,9 @@ function attachForm(){
                                 function renderExtra(){
                                     const val = actionEl.value;
                                     if(val === 'transfer'){
-                                        extra.innerHTML = `<label class="block text-sm">Source category</label><select id="transfer-source" class="w-full p-2 border rounded">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit ${c.limit})</option>`).join('')}</select><label class="block text-sm mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="w-full p-2 border rounded" value="${Math.min(cat.limit, amount)}" />`;
+                                        extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit ${c.limit})</option>`).join('')}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${Math.min(cat.limit, amount)}" />`;
                                     } else if(val === 'increase'){
-                                        extra.innerHTML = `<label class="block text-sm">Increase base by</label><input id="transfer-extra-input" type="number" class="w-full p-2 border rounded" value="${amount}" />`;
+                                        extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${amount}" />`;
                                     } else { extra.innerHTML = '' }
                                 }
                                 actionEl.addEventListener('change', renderExtra);
@@ -172,11 +172,11 @@ async function renderTransactions(){
     list.innerHTML = '';
     state.transactions.slice().reverse().forEach(t=>{
         const li = document.createElement('li');
-        li.className = 'flex items-center justify-between p-2 border-b';
+        li.className = 'd-flex align-items-center justify-content-between p-2 border-bottom';
         const cat = state.categories.find(c=>c.id===t.categoryId);
         // format date as dd-mm-yyyy using global helper
         const prettyDate = window.formatDate(t.date);
-        li.innerHTML = `<div><div class="text-sm">${prettyDate} • ${t.description || ''}</div><div class="text-xs text-gray-500">${cat?cat.name:'Uncategorized'}</div></div><div class="flex items-center gap-2"><div class="font-semibold ${t.type==='income'?'text-success':'text-danger'}">${t.type==='income'?'+':'-'}$${Number(t.amount).toFixed(2)}</div><button data-id="${t.id}" class="text-xs text-primary edit-btn">Edit</button><button data-id="${t.id}" class="text-xs text-red-600 delete-btn">Delete</button></div>`;
+        li.innerHTML = `<div><div class="small">${prettyDate} • ${t.description || ''}</div><div class="small text-muted">${cat?cat.name:'Uncategorized'}</div></div><div class="d-flex align-items-center gap-2"><div class="fw-semibold ${t.type==='income'?'text-success':'text-danger'}">${t.type==='income'?'+':'-'}$${Number(t.amount).toFixed(2)}</div><button data-id="${t.id}" class="btn btn-link btn-sm p-0 text-primary edit-btn">Edit</button><button data-id="${t.id}" class="btn btn-link btn-sm p-0 text-danger delete-btn">Delete</button></div>`;
         list.appendChild(li);
     });
 
@@ -199,10 +199,10 @@ async function renderTransactions(){
                 if(!t) return;
                             // Edit transaction via modal
                             const html = `
-                                <div class="space-y-2">
-                                    <input id="edit-t-amount" class="w-full p-2 border rounded" value="${t.amount}" />
-                                    <input id="edit-t-desc" class="w-full p-2 border rounded" value="${t.description||''}" />
-                                    <input id="edit-t-date" type="date" class="w-full p-2 border rounded" value="${t.date||''}" />
+                                <div class="mb-3">
+                                    <input id="edit-t-amount" class="form-control mb-2" value="${t.amount}" />
+                                    <input id="edit-t-desc" class="form-control mb-2" value="${t.description||''}" />
+                                    <input id="edit-t-date" type="date" class="form-control" value="${t.date||''}" />
                                 </div>
                             `;
                             await new Promise(resolve => {

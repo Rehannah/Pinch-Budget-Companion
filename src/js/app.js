@@ -57,28 +57,29 @@ function showOnboarding(){
     if(document.getElementById('onboard-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'onboard-modal';
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4';
+    modal.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-4';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
         // Friendly onboarding: allow adding categories with a small form list
         modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Welcome — Setup your month</h3>
-                <div class="mt-3 space-y-2">
-                    <label class="block text-sm text-gray-700 dark:text-gray-200">Month</label>
-                    <input id="onboard-month" type="month" class="w-full p-2 border rounded" />
-                    <label class="block text-sm text-gray-700 dark:text-gray-200">Base budget</label>
-                    <input id="onboard-base" type="number" step="0.01" class="w-full p-2 border rounded" placeholder="0.00" />
+            <div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
+                <h3 class="h5 fw-semibold">Welcome — Setup your month</h3>
+                <div class="mt-3">
+                    <label class="form-label small">Month</label>
+                    <input id="onboard-month" type="month" class="form-control" />
+                    <label class="form-label small mt-2">Base budget</label>
+                    <input id="onboard-base" type="number" step="0.01" class="form-control" placeholder="0.00" />
 
-                    <div>
-                        <div class="flex items-center justify-between">
-                            <label class="block text-sm text-gray-700 dark:text-gray-200">Categories</label>
-                            <button id="onboard-add-cat" class="text-sm text-primary">+ Add</button>
+                    <div class="mt-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <label class="form-label small">Categories</label>
+                            <button id="onboard-add-cat" class="btn btn-link small text-primary">+ Add</button>
                         </div>
-                        <div id="onboard-cat-list" class="mt-2 space-y-2 max-h-40 overflow-auto"></div>
+                        <div id="onboard-cat-list" class="mt-2" style="max-height:10rem; overflow:auto"></div>
                     </div>
 
-                    <div class="flex gap-2 justify-end">
-                        <button id="onboard-skip" class="px-3 py-2 rounded bg-gray-200">Skip</button>
-                        <button id="onboard-save" class="px-3 py-2 rounded bg-primary text-white">Start</button>
+                    <div class="d-flex gap-2 justify-content-end mt-3">
+                        <button id="onboard-skip" class="btn btn-secondary">Skip</button>
+                        <button id="onboard-save" class="btn btn-primary">Start</button>
                     </div>
                 </div>
             </div>
@@ -88,15 +89,15 @@ function showOnboarding(){
         // helper to add a category row
         function addCatRow(name='', limit='', type='expense'){
             const row = document.createElement('div');
-            row.className = 'flex gap-2 items-center';
+            row.className = 'd-flex gap-2 align-items-center mb-2';
             row.innerHTML = `
-                <input class="flex-1 p-2 border rounded" placeholder="Category name" value="${name}" />
-                <input class="w-24 p-2 border rounded" placeholder="Limit" value="${limit}" />
-                <select class="p-2 border rounded">
+                <input class="form-control flex-grow-1" placeholder="Category name" value="${name}" />
+                <input class="form-control" style="width:6rem" placeholder="Limit" value="${limit}" />
+                <select class="form-select" style="width:8rem">
                     <option value="expense" ${type==='expense'?'selected':''}>Expense</option>
                     <option value="income" ${type==='income'?'selected':''}>Income</option>
                 </select>
-                <button class="text-red-500">Remove</button>
+                <button class="btn btn-link text-danger p-0">Remove</button>
             `;
             const removeBtn = row.querySelector('button');
             removeBtn.addEventListener('click', ()=> row.remove());
@@ -138,14 +139,15 @@ window.showModal = function({ title = '', html = '', onSave = null, saveText = '
     if(existing) existing.remove();
     const modal = document.createElement('div');
     modal.id = 'generic-modal';
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4';
+    modal.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-4';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
     modal.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">${title}</h3>
+        <div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
+            <h3 class="h5 fw-semibold">${title}</h3>
             <div class="mt-3">${html}</div>
-            <div class="flex gap-2 justify-end mt-4">
-                <button id="modal-cancel" class="px-3 py-2 rounded bg-gray-200">Cancel</button>
-                <button id="modal-save" class="px-3 py-2 rounded bg-primary text-white">${saveText}</button>
+            <div class="d-flex gap-2 justify-content-end mt-4">
+                <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
+                <button id="modal-save" class="btn btn-primary">${saveText}</button>
             </div>
         </div>
     `;
