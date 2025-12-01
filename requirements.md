@@ -130,3 +130,5 @@ Reset the app for a new month:
 Clears transaction records.
 
 Prompts for new month and base setup again.
+
+Optionally can save categories and their limits to be used for the next month's budget.
