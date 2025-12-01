@@ -9,29 +9,16 @@ function mountHeader() {
     initHeader();
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const state = await initStorage();
-    mountHeader();
-
-    // On first run or after restart (no month set) show onboarding
-    if(!state || !state.meta || !state.meta.month){
-        showOnboarding();
-    }
-
-    // If page-specific init functions exist, call them.
-    if (window.initDashboard) window.initDashboard();
-    if (window.initTransactions) window.initTransactions();
-    if (window.initSettings) window.initSettings();
-});
-
-// Expose globally so settings.js can call it after clearing transactions
-window.showOnboarding = showOnboarding;
-
 async function showOnboarding(){
-    if(document.getElementById('onboard-modal')) return;
+    console.log('[showOnboarding] called');
+    if(document.getElementById('onboard-modal')) {
+        console.log('[showOnboarding] modal already exists, returning');
+        return;
+    }
     
     const state = await getState();
     const hasExistingCategories = state && state.categories && state.categories.length > 0;
+    console.log('[showOnboarding] hasExistingCategories:', hasExistingCategories);
     
     // Build modal HTML
     const modal = document.createElement('div');
@@ -70,6 +57,7 @@ async function showOnboarding(){
         </div>
     `;
     document.body.appendChild(modal);
+    console.log('[showOnboarding] modal appended to DOM');
 
     // Helper to create a category input row
     function addCatRow(name='', limit='', type='expense'){
@@ -131,10 +119,14 @@ async function showOnboarding(){
     });
 
     // Skip button
-    skipBtn.addEventListener('click', () => modal.remove());
+    skipBtn.addEventListener('click', () => {
+        console.log('[showOnboarding] skip clicked');
+        modal.remove();
+    });
 
     // Save button
     saveBtn.addEventListener('click', async () => {
+        console.log('[showOnboarding] save clicked');
         const month = document.getElementById('onboard-month').value;
         const baseBudget = parseFloat(document.getElementById('onboard-base').value);
 
@@ -164,6 +156,7 @@ async function showOnboarding(){
         }
 
         // Reset to new month and reload pages
+        console.log('[showOnboarding] calling resetForNewMonth');
         await resetForNewMonth({ month, baseBudget, categories });
         modal.remove();
         
@@ -172,6 +165,25 @@ async function showOnboarding(){
         if (window.initSettings) window.initSettings();
     });
 }
+
+// Expose globally so settings.js can call it
+window.showOnboarding = showOnboarding;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const state = await initStorage();
+    mountHeader();
+
+    // On first run or after restart (no month set) show onboarding
+    if(!state || !state.meta || !state.meta.month){
+        console.log('[DOMContentLoaded] no month set, showing onboarding');
+        showOnboarding();
+    }
+
+    // If page-specific init functions exist, call them.
+    if (window.initDashboard) window.initDashboard();
+    if (window.initTransactions) window.initTransactions();
+    if (window.initSettings) window.initSettings();
+});
 
 // Small modal utility used by pages to show forms/prompts
 window.showModal = function({ title = '', html = '', onSave = null, saveText = 'Save', onCancel = null }){
