@@ -11,12 +11,10 @@ const DEFAULT_STATE = {
         autoSaveToFile: false,
         darkMode: false
     },
-    categories: [
-        { id, name, limit, type: 'expense'|'income' }
-    ],
-    transactions: [
-        { id, date, amount, categoryId, type: 'income'|'expense', description }
-    ]
+    // Start with no categories or transactions by default.
+    // Categories and transactions are populated by user actions or via import.
+    categories: [],
+    transactions: []
 };
 
 async function initStorage() {
