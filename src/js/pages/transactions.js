@@ -99,67 +99,76 @@ function attachForm(){
                     });
                 }
                 if(!categoryId){ window.showModal({ title: 'Missing category', html: '<p class="small">Please choose or create a category.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
-            // Check category limit for expense
-            if(type==='expense'){
+            // Check category limit for expense and budget base overflow
+            if(type === 'expense'){
                 const state = await getState();
                 const cat = state.categories.find(c=>c.id===categoryId);
                 const spent = state.transactions.filter(t=>t.categoryId===categoryId && t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
                 const wouldBe = spent + amount;
-                        if(cat && typeof cat.limit === 'number' && wouldBe > cat.limit){
-                            // show a modal to allow transfer or increase
-                            const s = await getState();
-                            const otherCats = s.categories.filter(c=>c.id !== cat.id && c.type!=='income');
-                            const optionsHtml = `
-                                <div class="mb-2">
-                                    <p class="small">Category <strong>${cat.name}</strong> limit: $${cat.limit}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
-                                    <div>
-                                        <label class="form-label small">Choose action</label>
-                                        <select id="transfer-action" class="form-select">
-                                            <option value="transfer">Transfer from another category</option>
-                                            <option value="increase">Increase base budget</option>
-                                            <option value="cancel">Cancel</option>
-                                        </select>
-                                    </div>
-                                    <div id="transfer-extra" class="mt-2"></div>
-                                </div>
-                            `;
-                            await new Promise(resolve => {
-                                window.showModal({ title: 'Category limit exceeded', html: optionsHtml, saveText: 'Proceed', onSave: async ()=>{
-                                    const action = document.getElementById('transfer-action').value;
-                                    if(action === 'cancel'){ resolve(); return; }
-                                    if(action === 'increase'){
-                                        const inc = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
-                                        if(inc>0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(st)); }
-                                    } else if(action === 'transfer'){
-                                        const sourceId = document.getElementById('transfer-source').value;
-                                        const transferAmt = parseFloat(document.getElementById('transfer-extra-input').value) || 0;
-                                        try{ await transferBetweenCategories(sourceId, categoryId, transferAmt); }catch(err){ alert('Transfer failed: '+err.message); }
-                                    }
-                                    resolve();
-                                }, onCancel: ()=> resolve() });
+                // If this would exceed category limit, prompt user for actions
+                if(cat && typeof cat.limit === 'number' && wouldBe > cat.limit){
+                    const s = await getState();
+                    const otherCats = s.categories.filter(c=>c.id !== cat.id && c.type !== 'income');
+                    const optionsHtml = `
+                        <div class="mb-2">
+                            <p class="small">Category <strong>${cat.name}</strong> limit: $${cat.limit}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
+                            <div>
+                                <label class="form-label small">Choose action</label>
+                                <select id="transfer-action" class="form-select">
+                                    <option value="transfer">Transfer from another category</option>
+                                    <option value="increase">Increase base budget</option>
+                                    <option value="cancel">Cancel</option>
+                                </select>
+                            </div>
+                            <div id="transfer-extra" class="mt-2"></div>
+                        </div>
+                    `;
 
-                                // dynamic extra inputs
-                                const actionEl = document.getElementById('transfer-action');
-                                const extra = document.getElementById('transfer-extra');
-                                function renderExtra(){
-                                    const val = actionEl.value;
-                                    if(val === 'transfer'){
-                                        extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit ${c.limit})</option>`).join('')}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${Math.min(cat.limit, amount)}" />`;
-                                    } else if(val === 'increase'){
-                                        extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${amount}" />`;
-                                    } else { extra.innerHTML = '' }
-                                }
-                                actionEl.addEventListener('change', renderExtra);
-                                renderExtra();
-                            });
+                    let cancelled = false;
+                    await new Promise(resolve => {
+                        window.showModal({ title: 'Category limit exceeded', html: optionsHtml, saveText: 'Proceed', onSave: async ()=>{
+                            const action = document.getElementById('transfer-action').value;
+                            if(action === 'cancel'){ cancelled = true; resolve(); return; }
+                            if(action === 'increase'){
+                                const inc = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
+                                if(inc > 0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(st)); }
+                            } else if(action === 'transfer'){
+                                const sourceId = document.getElementById('transfer-source')?.value;
+                                const transferAmt = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
+                                // validate transfer amount
+                                if(!sourceId || transferAmt <= 0){ alert('Please select a source category and provide an amount > 0.'); return false; }
+                                const src = (await getState()).categories.find(c=>c.id===sourceId);
+                                if(!src){ alert('Selected source category not found.'); return false; }
+                                if(src.limit < transferAmt){ alert('Source category does not have sufficient available limit.'); return false; }
+                                try{ await transferBetweenCategories(sourceId, categoryId, transferAmt); }catch(err){ alert('Transfer failed: '+err.message); return false; }
+                            }
+                            resolve();
+                        }, onCancel: ()=>{ cancelled = true; resolve(); } });
+
+                        // dynamic extra inputs
+                        const actionEl = document.getElementById('transfer-action');
+                        const extra = document.getElementById('transfer-extra');
+                        function renderExtra(){
+                            const val = actionEl.value;
+                            if(val === 'transfer'){
+                                extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit ${c.limit})</option>`).join('')}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${Math.min(cat.limit, amount)}" />`;
+                            } else if(val === 'increase'){
+                                extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${amount}" />`;
+                            } else { extra.innerHTML = '' }
                         }
-                
+                        actionEl.addEventListener('change', renderExtra);
+                        renderExtra();
+                    });
+
+                    if(cancelled) return; // abort the transaction entirely
+                }
+
                 // Check if total expenses would exceed budget base
                 const state2 = await getState();
                 const totalExpense = state2.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
                 const baseBudget = Number(state2.meta.baseBudget || 0);
                 const wouldExceedBase = (totalExpense + amount) > baseBudget;
-                
+
                 if(baseBudget > 0 && wouldExceedBase){
                     const excess = (totalExpense + amount) - baseBudget;
                     const html = `
@@ -176,17 +185,19 @@ function attachForm(){
                             <div id="base-extra" class="mt-2"></div>
                         </div>
                     `;
+
+                    let cancelledBase = false;
                     await new Promise(resolve => {
                         window.showModal({ title: 'Budget Base would be exceeded', html, saveText: 'Proceed', onSave: async ()=>{
                             const action = document.getElementById('base-action').value;
-                            if(action === 'cancel'){ resolve(); return; }
+                            if(action === 'cancel'){ cancelledBase = true; resolve(); return; }
                             if(action === 'increase'){
                                 const inc = parseFloat(document.getElementById('base-extra-input')?.value) || 0;
                                 if(inc>0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(st)); }
                             }
                             resolve();
-                        }, onCancel: ()=> resolve() });
-                        
+                        }, onCancel: ()=>{ cancelledBase = true; resolve(); } });
+
                         const actionEl = document.getElementById('base-action');
                         const extra = document.getElementById('base-extra');
                         function renderExtra(){
@@ -197,6 +208,8 @@ function attachForm(){
                         actionEl.addEventListener('change', renderExtra);
                         renderExtra();
                     });
+
+                    if(cancelledBase) return; // abort the transaction
                 }
             }
 

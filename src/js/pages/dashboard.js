@@ -179,9 +179,49 @@ function renderDashboard(state){
                         <div class="h-3 bg-success" style="width:${pct}%"></div>
                     </div>
                 `;
+                // add edit/delete actions for income categories as well
+                const actions = document.createElement('div');
+                actions.className = 'd-flex align-items-center gap-2 mt-2';
+                actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button><button data-action="delete" data-id="${cat.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>`;
+                li.appendChild(actions);
                 incomeListContainer.appendChild(li);
             });
-            expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
+                expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
+                // attach edit/delete handlers for income categories (same logic as expenses)
+                incomeListContainer.querySelectorAll('button[data-action]').forEach(btn=>{
+                    btn.addEventListener('click', async ()=>{
+                        const id = btn.getAttribute('data-id');
+                        const action = btn.getAttribute('data-action');
+                        if(action === 'delete'){
+                            if(confirm('Delete this category? This will not remove transactions.')){
+                                const { removeCategory } = await import('../storage.js');
+                                await removeCategory(id);
+                                const s = await getState(); renderDashboard(s);
+                            }
+                        } else if(action === 'edit'){
+                            const s = await getState();
+                            const cat = s.categories.find(c=>c.id===id);
+                            if(!cat) return;
+                            const html = `
+                                <div class="mb-3">
+                                    <input id="edit-cat-name" class="form-control mb-2" value="${cat.name}" />
+                                    <div class="d-flex gap-2">
+                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit}" />
+                                        <select id="edit-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
+                                    </div>
+                                </div>
+                            `;
+                            window.showModal({ title: 'Edit category', html, onSave: async ()=>{
+                                const newName = document.getElementById('edit-cat-name').value || cat.name;
+                                const newLimit = parseFloat(document.getElementById('edit-cat-limit').value);
+                                const newType = document.getElementById('edit-cat-type').value || 'expense';
+                                await updateCategory(id, { name: newName, limit: Number(isNaN(newLimit)?cat.limit:newLimit), type: newType });
+                                const s2 = await getState(); renderDashboard(s2);
+                            }});
+                            setTimeout(()=>{ document.getElementById('edit-cat-type').value = cat.type || 'expense'; }, 10);
+                        }
+                    });
+                });
         }
 
     // show expense categories with bars and remaining balance

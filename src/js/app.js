@@ -194,6 +194,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.initSettings) window.initSettings();
 });
 
+// Listen for changes to the persisted state and update dashboard if present
+window.addEventListener('appStateChanged', async (e) => {
+    try{
+        if(window.initDashboard){
+            // Re-initialize dashboard to refresh UI
+            window.initDashboard();
+        }
+    }catch(err){ console.error('appStateChanged handler error', err); }
+});
+
 // Small modal utility used by pages to show forms/prompts
 window.showModal = function({ title = '', html = '', onSave = null, saveText = 'Save', onCancel = null }){
     const existing = document.getElementById('generic-modal');
