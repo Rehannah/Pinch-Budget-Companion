@@ -179,9 +179,12 @@ async function transferBetweenCategories(fromCategoryId, toCategoryId, amount) {
     // only allow transfers between expense categories that have numeric limits
     if (from.type === 'income' || to.type === 'income') throw new Error('Transfers only supported between expense categories');
     if (typeof from.limit !== 'number' || typeof to.limit !== 'number') throw new Error('Invalid category limits for transfer');
-    if (from.limit < amount) throw new Error('Insufficient funds in source category');
-    from.limit -= amount;
-    to.limit += amount;
+    // compute how much of the `from` category is already spent
+    const spentInFrom = state.transactions.filter(t => t.categoryId === fromCategoryId && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+    const available = Number(from.limit) - spentInFrom;
+    if (available < amount) throw new Error('Insufficient available funds in source category');
+    from.limit = Number(from.limit) - amount;
+    to.limit = Number(to.limit) + amount;
     await saveState(state);
     return { from, to };
 }

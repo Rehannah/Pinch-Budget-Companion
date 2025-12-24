@@ -51,7 +51,28 @@ window.initSettings = async function(){
             // When keepCats is true, pass the current categories into resetForNewMonth so they persist
             // When false, pass an empty array so categories are cleared.
             const state = await getState();
-            const catsToPass = keepCats ? state.categories.map(c=>({ name: c.name, limit: c.limit, type: c.type })) : [];
+            let catsToPass = keepCats ? state.categories.map(c=>({ name: c.name, limit: c.limit, type: c.type })) : [];
+            // Validate category limits do not exceed baseBudget
+            const expenseCats = catsToPass.filter(c=>c.type !== 'income');
+            const totalAssigned = expenseCats.reduce((s,c)=>s + Number(c.limit || 0), 0);
+            if(totalAssigned > base){ alert('One or more category limits exceed the Base Budget. Please adjust limits before restarting.'); return false; }
+            // If there is remaining unallocated budget, offer to add it to an existing category
+            const remaining = Math.max(0, base - totalAssigned);
+            if(remaining > 0 && expenseCats.length > 0){
+                // build select options
+                const opts = expenseCats.map(c => `<option value="${c.name}">${c.name} (current $${Number(c.limit||0).toFixed(2)})</option>`).join('');
+                const html2 = `<div class="mb-2"><p class="small">You have $${remaining.toFixed(2)} unallocated from your base budget. Add it to one of your expense categories?</p><label class="form-label small">Category</label><select id="alloc-cat" class="form-select">${opts}</select></div>`;
+                const chosen = await new Promise(res => {
+                    window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add', onSave: async ()=>{
+                        const sel = document.getElementById('alloc-cat');
+                        const chosenName = sel?.value;
+                        res(chosenName || null);
+                    }, onCancel: ()=> res(null) });
+                });
+                if(chosen){
+                    catsToPass = catsToPass.map(c=> c.name === chosen ? { ...c, limit: Number(c.limit||0) + remaining } : c);
+                }
+            }
 
             await resetForNewMonth({ month, baseBudget: base, categories: catsToPass });
             if(window.showToast) window.showToast('Restart complete — new month set.');

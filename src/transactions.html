@@ -35,8 +35,9 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="mt-2">
-                            <input type="date" id="transaction-date" class="form-control" required>
+                        <div class="mt-2 d-flex align-items-center gap-2">
+                            <input type="number" id="transaction-date" class="form-control" style="max-width:8rem" min="1" max="31" placeholder="Day (1-31)" required>
+                            <div class="small text-muted align-self-center" id="transaction-base-month">&nbsp;</div>
                         </div>
                         <div class="mt-2">
                             <input type="text" id="transaction-desc" class="form-control" placeholder="Description">

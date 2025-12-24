@@ -1,9 +1,33 @@
-import { getState, addTransaction, addCategory, editTransaction as editTx, deleteTransaction as deleteTx, transferBetweenCategories } from '../storage.js';
+import { getState, addTransaction, addCategory, updateCategory, editTransaction as editTx, deleteTransaction as deleteTx, transferBetweenCategories } from '../storage.js';
 
 window.initTransactions = async function(){
     await populateCategories();
+    await updateBaseMonthLabel();
     attachForm();
     await renderTransactions();
+}
+
+async function updateBaseMonthLabel(){
+    try{
+        const state = await getState();
+        const el = document.getElementById('transaction-base-month');
+        if(!el) return;
+        if(state.meta && state.meta.month){
+            try{
+                const parts = String(state.meta.month).split('-');
+                if(parts.length === 2){
+                    const yyyy = Number(parts[0]);
+                    const mm = Number(parts[1]);
+                    const d = new Date(yyyy, Math.max(0, mm - 1), 1);
+                    el.textContent = d.toLocaleString(undefined, { month: 'short', year: 'numeric' });
+                } else {
+                    el.textContent = state.meta.month;
+                }
+            }catch(e){ el.textContent = state.meta.month; }
+        } else {
+            el.textContent = '';
+        }
+    }catch(e){}
 }
 
 async function populateCategories(){
@@ -37,7 +61,7 @@ async function populateCategories(){
                             </div>
                         `;
                         await new Promise(resolve => {
-                            window.showModal({ title: 'Add category', html, saveText: 'Add', onSave: async ()=>{
+                                window.showModal({ title: 'Add category', html, saveText: 'Add', onSave: async ()=>{
                                 const name = (document.getElementById('new-cat-name').value || '').trim();
                                 const type = document.getElementById('new-cat-type').value || 'expense';
                                 let limit;
@@ -45,6 +69,9 @@ async function populateCategories(){
                                     const limitRaw = document.getElementById('new-cat-limit').value;
                                     limit = limitRaw === '' ? 0 : parseFloat(limitRaw);
                                     if(Number.isNaN(limit) || limit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                    const st = await getState();
+                                    const baseBudget = Number(st.meta.baseBudget || 0);
+                                    if(baseBudget > 0 && limit > baseBudget){ alert('Category limit cannot exceed the Base Budget.'); return false; }
                                 } else {
                                     limit = undefined;
                                 }
@@ -52,6 +79,27 @@ async function populateCategories(){
                                 const newCat = await addCategory({ name, limit, type });
                                 await populateCategories();
                                 sel.value = newCat.id;
+                                // encourage allocation of remaining budget
+                                try{
+                                    const s = await getState();
+                                    const base = Number(s.meta.baseBudget || 0);
+                                    if(base > 0){
+                                        const totalAssigned = s.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
+                                        const remaining = Math.max(0, base - totalAssigned);
+                                        if(remaining > 0){
+                                            await new Promise(res => {
+                                                const html2 = `<p class="small">You have $${remaining.toFixed(2)} unallocated from your base budget. Add it to this category?</p>`;
+                                                window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
+                                                    const newLimit = (Number(newCat.limit||0) || 0) + remaining;
+                                                    await updateCategory(newCat.id, { limit: newLimit });
+                                                    await populateCategories();
+                                                    sel.value = newCat.id;
+                                                    res();
+                                                }, onCancel: ()=> res() });
+                                            });
+                                        }
+                                    }
+                                }catch(e){}
                                 resolve();
                             }, onCancel: ()=> resolve() });
                             // toggle limit input visibility
@@ -75,13 +123,19 @@ function attachForm(){
         e.preventDefault();
         const type = document.getElementById('transaction-type').value;
     let categoryId = document.getElementById('transaction-category').value;
-        const date = document.getElementById('transaction-date').value;
+        const dayRaw = document.getElementById('transaction-date').value;
     const description = document.getElementById('transaction-desc').value;
     const amountRaw = document.getElementById('transaction-amount').value;
     const amount = amountRaw === '' ? NaN : Number(amountRaw);
     // basic validation
     if(Number.isNaN(amount) || amount <= 0){ window.showModal({ title: 'Invalid amount', html: '<p class="small">Please enter an amount greater than 0.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
-    if(!date){ window.showModal({ title: 'Invalid date', html: '<p class="small">Please choose a date for the transaction.</p>', saveText: 'OK', onSave: ()=>{} }); return; }
+    // day-only input: combine with base month/year from app state
+    const day = parseInt(dayRaw, 10);
+    if(Number.isNaN(day) || day < 1 || day > 31){ window.showModal({ title: 'Invalid date', html: '<p class="small">Please enter a valid day (1-31).</p>', saveText: 'OK', onSave: ()=>{} }); return; }
+    const currentStateForDate = await getState();
+    const baseMonth = currentStateForDate.meta && currentStateForDate.meta.month ? currentStateForDate.meta.month : (new Date()).toISOString().slice(0,7);
+    const dayPadded = String(day).padStart(2, '0');
+    const date = `${baseMonth}-${dayPadded}`;
                 if(!categoryId || categoryId === '__no_cat__'){
                     // ask user to create a category first
                     await new Promise(resolve => {
@@ -105,12 +159,36 @@ function attachForm(){
                                         const raw = document.getElementById('new-cat-limit').value;
                                         limit = raw === '' ? 0 : parseFloat(raw);
                                         if(Number.isNaN(limit) || limit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                        const st = await getState();
+                                        const baseBudget = Number(st.meta.baseBudget || 0);
+                                        if(baseBudget > 0 && limit > baseBudget){ alert('Category limit cannot exceed the Base Budget.'); return false; }
                                     } else {
                                         limit = undefined;
                                     }
                                     const newCat = await addCategory({ name, limit, type });
                                     await populateCategories();
                                     categoryId = newCat.id;
+                                    // encourage allocation of remaining budget
+                                    try{
+                                        const s = await getState();
+                                        const base = Number(s.meta.baseBudget || 0);
+                                        if(base > 0){
+                                            const totalAssigned = s.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
+                                            const remaining = Math.max(0, base - totalAssigned);
+                                            if(remaining > 0){
+                                                await new Promise(res3 => {
+                                                    const html2 = `<p class="small">You have $${remaining.toFixed(2)} unallocated from your base budget. Add it to this category?</p>`;
+                                                    window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
+                                                        const newLimit = (Number(newCat.limit||0) || 0) + remaining;
+                                                        await updateCategory(newCat.id, { limit: newLimit });
+                                                        await populateCategories();
+                                                        categoryId = newCat.id;
+                                                        res3();
+                                                    }, onCancel: ()=> res3() });
+                                                });
+                                            }
+                                        }
+                                    }catch(e){}
                                     res2();
                                 }, onCancel: ()=> res2() });
                                 // toggle limit in nested modal
@@ -137,7 +215,15 @@ function attachForm(){
                 // If this would exceed category limit, prompt user for actions
                 if(cat && typeof cat.limit === 'number' && wouldBe > cat.limit){
                     const s = await getState();
-                    const otherCats = s.categories.filter(c=>c.id !== cat.id && c.type !== 'income');
+                    // compute available amounts for other expense categories
+                    const otherCats = s.categories
+                        .filter(c => c.id !== cat.id && c.type !== 'income')
+                        .map(c => {
+                            const limit = (typeof c.limit === 'number') ? Number(c.limit) : 0;
+                            const spent = s.transactions.filter(t => t.categoryId === c.id && t.type === 'expense').reduce((ss, t) => ss + Number(t.amount), 0);
+                            const available = Math.max(0, limit - spent);
+                            return { ...c, limit, spent, available };
+                        });
                     const optionsHtml = `
                         <div class="mb-2">
                             <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toFixed(2)}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
@@ -166,9 +252,13 @@ function attachForm(){
                                 const transferAmt = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
                                 // validate transfer amount
                                 if(!sourceId || transferAmt <= 0){ alert('Please select a source category and provide an amount > 0.'); return false; }
-                                const src = (await getState()).categories.find(c=>c.id===sourceId);
+                                const st2 = await getState();
+                                const src = st2.categories.find(c=>c.id===sourceId);
                                 if(!src){ alert('Selected source category not found.'); return false; }
-                                if(src.limit < transferAmt){ alert('Source category does not have sufficient available limit.'); return false; }
+                                const srcLimit = (typeof src.limit === 'number') ? Number(src.limit) : 0;
+                                const srcSpent = st2.transactions.filter(t => t.categoryId === sourceId && t.type === 'expense').reduce((ss, t) => ss + Number(t.amount), 0);
+                                const srcAvailable = Math.max(0, srcLimit - srcSpent);
+                                if(srcAvailable < transferAmt){ alert('Source category does not have sufficient available funds to transfer.'); return false; }
                                 try{ await transferBetweenCategories(sourceId, categoryId, transferAmt); }catch(err){ alert('Transfer failed: '+err.message); return false; }
                             }
                             resolve();
@@ -180,7 +270,17 @@ function attachForm(){
                         function renderExtra(){
                             const val = actionEl.value;
                             if(val === 'transfer'){
-                                extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit $${(typeof c.limit==='number'?Number(c.limit).toFixed(2):'0.00')})</option>`).join('')}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${Math.min(Number(cat.limit||0), amount)}" />`;
+                                // build options showing available funds; disable options with 0 available
+                                const opts = otherCats.map(c => `<option value="${c.id}" ${c.available<=0? 'disabled':''}>${c.name} (available $${c.available.toFixed(2)})</option>`).join('');
+                                const firstAvailable = otherCats.find(c => c.available > 0);
+                                const defaultAmt = firstAvailable ? Math.min(firstAvailable.available, amount) : amount;
+                                extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${opts}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${defaultAmt}" />`;
+                                // auto-select first valid donor if present
+                                setTimeout(()=>{
+                                    const sel = document.getElementById('transfer-source');
+                                    if(!sel) return;
+                                    if(firstAvailable){ sel.value = firstAvailable.id; }
+                                }, 10);
                             } else if(val === 'increase'){
                                 extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${amount}" />`;
                             } else { extra.innerHTML = '' }
@@ -257,7 +357,12 @@ async function renderTransactions(){
     const state = await getState();
     const list = document.getElementById('transactions');
     list.innerHTML = '';
-    state.transactions.slice().reverse().forEach(t=>{
+    // Only show transactions that match the base month/year
+    let txs = Array.isArray(state.transactions) ? state.transactions.slice() : [];
+    if(state.meta && state.meta.month){
+        txs = txs.filter(t => typeof t.date === 'string' && t.date.startsWith(state.meta.month + '-'));
+    }
+    txs.reverse().forEach(t=>{
         const li = document.createElement('li');
         li.className = 'd-flex align-items-center justify-content-between p-2 border-bottom';
         const cat = state.categories.find(c=>c.id===t.categoryId);
@@ -285,11 +390,16 @@ async function renderTransactions(){
                 const t = state.transactions.find(x=>x.id===id);
                 if(!t) return;
                             // Edit transaction via modal
+                            const dayVal = (t.date && t.date.split('-')[2]) ? parseInt(t.date.split('-')[2],10) : '';
+                            const baseMonthLabel = (state.meta && state.meta.month) ? (()=>{ try{ const parts = String(state.meta.month).split('-'); if(parts.length === 2){ const yyyy = Number(parts[0]); const mm = Number(parts[1]); const d = new Date(yyyy, Math.max(0, mm - 1), 1); return d.toLocaleString(undefined,{ month: 'short', year: 'numeric' }); } return state.meta.month; }catch(e){ return state.meta.month; } })() : '';
                             const html = `
                                 <div class="mb-3">
                                     <input id="edit-t-amount" class="form-control mb-2" value="${t.amount}" />
                                     <input id="edit-t-desc" class="form-control mb-2" value="${t.description||''}" />
-                                    <input id="edit-t-date" type="date" class="form-control" value="${t.date||''}" />
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <input id="edit-t-day" type="number" min="1" max="31" class="form-control" style="max-width:8rem" value="${dayVal}" />
+                                        <div class="small text-muted">Base: <span id="edit-base-month">${baseMonthLabel}</span></div>
+                                    </div>
                                 </div>
                             `;
                             await new Promise(resolve => {
@@ -297,9 +407,144 @@ async function renderTransactions(){
                                     const newAmtRaw = document.getElementById('edit-t-amount').value;
                                     const newAmt = newAmtRaw === '' ? NaN : parseFloat(newAmtRaw);
                                     const newDesc = document.getElementById('edit-t-desc').value || t.description;
-                                    const newDate = document.getElementById('edit-t-date').value || t.date;
+                                    const newDayRaw = document.getElementById('edit-t-day').value;
+                                    const newDay = parseInt(newDayRaw, 10);
+                                    if(Number.isNaN(newDay) || newDay < 1 || newDay > 31){ alert('Please enter a valid day (1-31).'); return false; }
+                                    const stForDate = await getState();
+                                    const baseMonthForEdit = stForDate.meta && stForDate.meta.month ? stForDate.meta.month : (new Date()).toISOString().slice(0,7);
+                                    const newDate = `${baseMonthForEdit}-${String(newDay).padStart(2,'0')}`;
                                     if(Number.isNaN(newAmt) || newAmt <= 0){ alert('Amount must be a number greater than 0.'); return false; }
                                     if(!newDate){ alert('Please choose a date.'); return false; }
+
+                                    // If this is an expense, validate against category limits and Budget Base
+                                    if(t.type === 'expense'){
+                                        const st = await getState();
+                                        const cat = st.categories.find(c=>c.id===t.categoryId);
+                                        const spentExcluding = st.transactions.filter(x=>x.categoryId===t.categoryId && x.type==='expense' && x.id !== id).reduce((s,x)=>s+Number(x.amount),0);
+                                        const wouldBe = spentExcluding + newAmt;
+
+                                        // If this would exceed category limit, prompt user to transfer/increase/cancel
+                                        if(cat && typeof cat.limit === 'number' && wouldBe > cat.limit){
+                                            const otherCats = st.categories
+                                                .filter(c => c.id !== cat.id && c.type !== 'income')
+                                                .map(c => {
+                                                    const limit = (typeof c.limit === 'number') ? Number(c.limit) : 0;
+                                                    const spent = st.transactions.filter(t2 => t2.categoryId === c.id && t2.type === 'expense').reduce((ss, t2) => ss + Number(t2.amount), 0);
+                                                    const available = Math.max(0, limit - spent);
+                                                    return { ...c, limit, spent, available };
+                                                });
+
+                                            const optionsHtml = `
+                                                <div class="mb-2">
+                                                    <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toFixed(2)}. This change would make spent $${wouldBe.toFixed(2)}.</p>
+                                                    <div>
+                                                        <label class="form-label small">Choose action</label>
+                                                        <select id="transfer-action" class="form-select">
+                                                            <option value="transfer">Transfer from another category</option>
+                                                            <option value="increase">Increase base budget</option>
+                                                            <option value="cancel">Cancel</option>
+                                                        </select>
+                                                    </div>
+                                                    <div id="transfer-extra" class="mt-2"></div>
+                                                </div>
+                                            `;
+
+                                            let cancelled = false;
+                                            await new Promise(res => {
+                                                window.showModal({ title: 'Category limit exceeded', html: optionsHtml, saveText: 'Proceed', onSave: async ()=>{
+                                                    const action = document.getElementById('transfer-action').value;
+                                                    if(action === 'cancel'){ cancelled = true; res(); return; }
+                                                    if(action === 'increase'){
+                                                        const inc = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
+                                                        if(inc > 0){ const sst = await getState(); sst.meta.baseBudget = (Number(sst.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(sst)); }
+                                                    } else if(action === 'transfer'){
+                                                        const sourceId = document.getElementById('transfer-source')?.value;
+                                                        const transferAmt = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
+                                                        if(!sourceId || transferAmt <= 0){ alert('Please select a source category and provide an amount > 0.'); return false; }
+                                                        const src = (await getState()).categories.find(c=>c.id===sourceId);
+                                                        if(!src){ alert('Selected source category not found.'); return false; }
+                                                        const srcLimit = (typeof src.limit === 'number') ? Number(src.limit) : 0;
+                                                        const srcSpent = (await getState()).transactions.filter(t2 => t2.categoryId === sourceId && t2.type === 'expense').reduce((ss, t2) => ss + Number(t2.amount), 0);
+                                                        const srcAvailable = Math.max(0, srcLimit - srcSpent);
+                                                        if(srcAvailable < transferAmt){ alert('Source category does not have sufficient available funds to transfer.'); return false; }
+                                                        try{ await transferBetweenCategories(sourceId, cat.id, transferAmt); }catch(err){ alert('Transfer failed: '+err.message); return false; }
+                                                    }
+                                                    res();
+                                                }, onCancel: ()=>{ cancelled = true; res(); } });
+
+                                                const actionEl = document.getElementById('transfer-action');
+                                                const extra = document.getElementById('transfer-extra');
+                                                function renderExtra(){
+                                                    const val = actionEl.value;
+                                                    if(val === 'transfer'){
+                                                        const opts = otherCats.map(c => `<option value="${c.id}" ${c.available<=0? 'disabled':''}>${c.name} (available $${c.available.toFixed(2)})</option>`).join('');
+                                                        const firstAvailable = otherCats.find(c => c.available > 0);
+                                                        const defaultAmt = firstAvailable ? Math.min(firstAvailable.available, newAmt) : newAmt;
+                                                        extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${opts}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${defaultAmt}" />`;
+                                                        setTimeout(()=>{
+                                                            const sel = document.getElementById('transfer-source');
+                                                            if(!sel) return;
+                                                            if(firstAvailable){ sel.value = firstAvailable.id; }
+                                                        }, 10);
+                                                    } else if(val === 'increase'){
+                                                        extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${(wouldBe - cat.limit).toFixed(2)}" />`;
+                                                    } else { extra.innerHTML = '' }
+                                                }
+                                                actionEl.addEventListener('change', renderExtra);
+                                                renderExtra();
+                                            });
+
+                                            if(cancelled) return false; // abort edit
+                                        }
+
+                                        // Check if total expenses would exceed budget base (excluding this transaction)
+                                        const totalExcluding = st.transactions.filter(tx=>tx.type==='expense' && tx.id !== id).reduce((s,tx)=>s+Number(tx.amount),0);
+                                        const baseBudget = Number(st.meta.baseBudget || 0);
+                                        if(baseBudget > 0 && (totalExcluding + newAmt) > baseBudget){
+                                            const excess = (totalExcluding + newAmt) - baseBudget;
+                                            const html = `
+                                                <div class="mb-2">
+                                                    <p class="small">Total expenses would exceed Budget Base by $${excess.toFixed(2)}.</p>
+                                                    <p class="small text-muted">Current Budget Base: $${baseBudget.toFixed(2)} | Current Total Expense: $${totalExcluding.toFixed(2)}</p>
+                                                    <div>
+                                                        <label class="form-label small">Do you want to increase Budget Base or cancel?</label>
+                                                        <select id="base-action" class="form-select">
+                                                            <option value="increase">Increase base budget</option>
+                                                            <option value="cancel">Cancel this change</option>
+                                                        </select>
+                                                    </div>
+                                                    <div id="base-extra" class="mt-2"></div>
+                                                </div>
+                                            `;
+
+                                            let cancelledBase = false;
+                                            await new Promise(res => {
+                                                window.showModal({ title: 'Budget Base would be exceeded', html, saveText: 'Proceed', onSave: async ()=>{
+                                                    const action = document.getElementById('base-action').value;
+                                                    if(action === 'cancel'){ cancelledBase = true; res(); return; }
+                                                    if(action === 'increase'){
+                                                        const inc = parseFloat(document.getElementById('base-extra-input')?.value) || 0;
+                                                        if(inc>0){ const sst = await getState(); sst.meta.baseBudget = (Number(sst.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(sst)); }
+                                                    }
+                                                    res();
+                                                }, onCancel: ()=>{ cancelledBase = true; res(); } });
+
+                                                const actionEl = document.getElementById('base-action');
+                                                const extra = document.getElementById('base-extra');
+                                                function renderExtra(){
+                                                    if(actionEl.value === 'increase'){
+                                                        extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="base-extra-input" type="number" class="form-control" value="${excess.toFixed(2)}" />`;
+                                                    } else { extra.innerHTML = '' }
+                                                }
+                                                actionEl.addEventListener('change', renderExtra);
+                                                renderExtra();
+                                            });
+
+                                            if(cancelledBase) return false; // abort edit
+                                        }
+                                    }
+
+                                    // All validations passed — save the edited transaction
                                     await editTx(id, { amount: newAmt, description: newDesc, date: newDate });
                                     await renderTransactions();
                                     resolve();

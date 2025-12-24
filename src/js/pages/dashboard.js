@@ -29,33 +29,73 @@ async function showEditBaseModal(state){
     const html = `
         <div class="mb-3">
             <label class="form-label small">Base Budget</label>
-            <input id="modal-base" type="number" step="0.01" class="form-control" value="${Number(state.meta.baseBudget || 0).toFixed(2)}" />
+            <input id="modal-base" type="number" step="1.00" class="form-control" value="${Number(state.meta.baseBudget || 0).toFixed(2)}" />
         </div>
     `;
     window.showModal({ title: 'Edit Budget Base', html, saveText: 'Save', onSave: async ()=>{
         const newBase = parseFloat(document.getElementById('modal-base').value);
         if(Number.isNaN(newBase) || newBase < 0){ alert('Budget must be a number ≥ 0.'); return false; }
+        // Warn if new base is less than the sum of expense category limits
+        try{
+            const totalAssigned = state.categories.filter(c=>c.type!=='income').reduce((s,c)=>s + Number(c.limit||0),0);
+            if(newBase < totalAssigned){
+                const confirmed = await new Promise(res => {
+                    const diff = totalAssigned - newBase;
+                    const html2 = `<p class="small">The sum of your expense category limits is <strong>$${totalAssigned.toFixed(2)}</strong>, which exceeds the new base by <strong>$${diff.toFixed(2)}</strong>. You should adjust category limits or transaction data. Save anyway?</p>`;
+                    window.showModal({ title: 'Base smaller than assigned limits', html: html2, saveText: 'Save anyway', onSave: ()=>{ res(true); }, onCancel: ()=>{ const el = document.getElementById('category-list'); if(el) el.scrollIntoView({ behavior: 'smooth' }); res(false); } });
+                });
+                if(!confirmed) return false;
+            }
+        }catch(e){ /* noop */ }
+
         const { saveState } = await import('../storage.js');
         state.meta.baseBudget = newBase;
         await saveState(state);
         const s = await getState();
         renderDashboard(s);
+        // Refresh transactions view and other listeners so month changes propagate
+        try{ if(window.initTransactions) await window.initTransactions(); }catch(e){}
+        try{ window.dispatchEvent(new CustomEvent('appStateChanged')); }catch(e){}
     }});
 }
 
 async function showEditMonthModal(state){
+    // Use MM-YYYY input for clarity; store internally as YYYY-MM
+    const curMonth = state.meta && state.meta.month ? (()=>{
+        const parts = String(state.meta.month).split('-');
+        if(parts.length === 2) return `${parts[1]}-${parts[0]}`; // MM-YYYY
+        return state.meta.month;
+    })() : '';
+
     const html = `
         <div class="mb-3">
-            <label class="form-label small">Month (YYYY-MM)</label>
-            <input id="modal-month" type="text" class="form-control" placeholder="e.g. 2025-11" value="${state.meta.month || ''}" />
+            <label class="form-label small">Month (MM-YYYY)</label>
+            <input id="modal-month" type="text" class="form-control" placeholder="e.g. 01-2025" value="${curMonth}" />
         </div>
     `;
+
     window.showModal({ title: 'Edit Month', html, saveText: 'Save', onSave: async ()=>{
-        const newMonth = document.getElementById('modal-month').value.trim();
-        const monthRegex = /^\d{4}-\d{2}$/;
-        if(!newMonth || !monthRegex.test(newMonth)){ alert('Month must be in YYYY-MM format.'); return false; }
+        const raw = document.getElementById('modal-month').value.trim();
+        const monthRegex = /^(0[1-9]|1[0-2])-(\d{4})$/; // MM-YYYY
+        const m = raw.match(monthRegex);
+        if(!raw || !m){ alert('Month must be in MM-YYYY format (e.g. 01-2025).'); return false; }
+        const month = m[1];
+        const year = m[2];
+        const newMonth = `${year}-${month}`; // internal YYYY-MM
         const { saveState } = await import('../storage.js');
         state.meta.month = newMonth;
+        // update month/year for all existing transactions to keep them in sync
+        if(Array.isArray(state.transactions)){
+            state.transactions = state.transactions.map(t => {
+                try{
+                    const parts = (t.date || '').split('-');
+                    const day = parts.length >= 3 ? parts[2] : '01';
+                    return { ...t, date: `${newMonth}-${String(day).padStart(2,'0')}` };
+                }catch(e){
+                    return { ...t };
+                }
+            });
+        }
         await saveState(state);
         const s = await getState();
         renderDashboard(s);
@@ -80,11 +120,33 @@ async function showAddCategoryModal(){
                 const raw = document.getElementById('modal-cat-limit').value;
                 limit = raw === '' ? 0 : parseFloat(raw);
                 if(Number.isNaN(limit) || limit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                const st = await getState();
+                const baseBudget = Number(st.meta.baseBudget || 0);
+                if(baseBudget > 0 && limit > baseBudget){ alert('Category limit cannot exceed the Base Budget.'); return false; }
             } else {
                 limit = undefined;
             }
-            await addCategory({ name, limit, type });
+            const newCat = await addCategory({ name, limit, type });
             const s = await getState(); renderDashboard(s);
+            // after adding, encourage full allocation if baseBudget not fully assigned
+            try{
+                const base = Number(s.meta.baseBudget || 0);
+                if(base > 0){
+                    const totalAssigned = s.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
+                    const remaining = Math.max(0, base - totalAssigned);
+                    if(remaining > 0){
+                        await new Promise(res => {
+                            const html2 = `<p class="small">You have $${remaining.toFixed(2)} of your base budget unallocated. Do you want to add it to this category now?</p>`;
+                            window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
+                                const newLimit = (Number(newCat.limit||0) || 0) + remaining;
+                                await updateCategory(newCat.id, { limit: newLimit });
+                                const s2 = await getState(); renderDashboard(s2);
+                                res();
+                            }, onCancel: ()=> res() });
+                        });
+                    }
+                }
+            }catch(e){ /* noop */ }
         }});
         // Toggle limit input visibility when type changes
         setTimeout(()=>{
@@ -101,11 +163,19 @@ function renderDashboard(state){
         // display full month name (e.g. November 2025)
         let monthLabel = 'Unnamed month';
         if(state.meta && state.meta.month){
-            try{
-                const d = new Date(state.meta.month + '-01');
-                monthLabel = d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
-            }catch(e){ monthLabel = state.meta.month; }
-        }
+                try{
+                    // Parse year-month safely (avoid timezone shift) and build a local Date
+                    const parts = String(state.meta.month).split('-');
+                    if(parts.length === 2){
+                        const yyyy = Number(parts[0]);
+                        const mm = Number(parts[1]);
+                        const d = new Date(yyyy, Math.max(0, mm - 1), 1);
+                        monthLabel = d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+                    } else {
+                        monthLabel = state.meta.month;
+                    }
+                }catch(e){ monthLabel = state.meta.month; }
+            }
         document.getElementById('month-label').textContent = monthLabel;
         document.getElementById('budget-base').textContent = `Base Budget: $${Number(state.meta.baseBudget || 0).toFixed(2)}`;
 
@@ -139,6 +209,31 @@ function renderDashboard(state){
         </div>
     `;
 
+    // show a persistent banner if base budget is not fully allocated across expense categories
+    try{
+        const container = document.querySelector('.container');
+        if(container){
+            // remove old banner if present
+            const old = document.getElementById('unallocated-banner');
+            if(old) old.remove();
+            const base = Number(state.meta.baseBudget || 0);
+            const totalAssigned = state.categories.filter(c=>c.type!=='income').reduce((s,c)=>s + Number(c.limit||0),0);
+            const remaining = Math.max(0, base - totalAssigned);
+            if(base > 0 && remaining > 0){
+                const banner = document.createElement('div');
+                banner.id = 'unallocated-banner';
+                banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
+                banner.innerHTML = `<div class="small">You have $${remaining.toFixed(2)} of your base budget unallocated.</div><div><button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button><button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
+                // insert banner just after the first section
+                const firstSection = container.querySelector('section');
+                if(firstSection && firstSection.parentNode){ firstSection.parentNode.insertBefore(banner, firstSection.nextSibling); }
+                // attach handlers
+                banner.querySelector('#dismiss-unalloc').addEventListener('click', ()=> banner.remove());
+                banner.querySelector('#redistribute-btn').addEventListener('click', ()=> showRedistributeModal(remaining, state.categories.filter(c=>c.type!=='income')));
+            }
+        }
+    }catch(e){ /* noop */ }
+
     // progress bars: income and expense relative to baseBudget (fallback to relative proportions)
     // Top-level: only show how much of the base budget is used (spend bar)
     const spendBar = document.getElementById('spend-bar');
@@ -162,7 +257,7 @@ function renderDashboard(state){
         // show income categories
         // show income categories separately with progress bars (income categories have no limits)
         if(incomeCats.length){
-            const header = document.createElement('h4'); header.className = 'small fw-semibold'; header.textContent = 'Income';
+            const header = document.createElement('h3'); header.className = 'small fw-semibold'; header.textContent = 'Income';
             incomeListContainer.appendChild(header);
 
             // compute fallback denominator if no limits present
@@ -199,7 +294,7 @@ function renderDashboard(state){
                 expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
                 // If there are expense categories, add a clear header for them below the income list
                 if(expenseCats.length){
-                    const expenseHeader = document.createElement('h4');
+                    const expenseHeader = document.createElement('h3');
                     expenseHeader.className = 'small fw-semibold mt-4';
                     expenseHeader.textContent = 'Expenses';
                     expenseList.parentElement.insertBefore(expenseHeader, expenseList);
@@ -236,11 +331,33 @@ function renderDashboard(state){
                                     const raw = document.getElementById('edit-cat-limit').value;
                                     newLimit = raw === '' ? 0 : parseFloat(raw);
                                     if(Number.isNaN(newLimit) || newLimit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                    const st = await getState();
+                                    const baseBudget = Number(st.meta.baseBudget || 0);
+                                    if(baseBudget > 0 && newLimit > baseBudget){ alert('Category limit cannot exceed the Base Budget.'); return false; }
                                 } else {
                                     newLimit = undefined;
                                 }
                                 await updateCategory(id, { name: newName, limit: newLimit, type: newType });
                                 const s2 = await getState(); renderDashboard(s2);
+                                // encourage redistribution if budget not fully assigned
+                                try{
+                                    const base = Number(s2.meta.baseBudget || 0);
+                                    if(base > 0){
+                                        const totalAssigned = s2.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
+                                        const remaining = Math.max(0, base - totalAssigned);
+                                        if(remaining > 0){
+                                            await new Promise(res => {
+                                                const html2 = `<p class="small">You have $${remaining.toFixed(2)} of your base budget unallocated. Do you want to add it to this category now?</p>`;
+                                                window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
+                                                    const cur = (s2.categories.find(c=>c.id===id)?.limit) || 0;
+                                                    await updateCategory(id, { limit: Number(cur) + remaining });
+                                                    const s3 = await getState(); renderDashboard(s3);
+                                                    res();
+                                                }, onCancel: ()=> res() });
+                                            });
+                                        }
+                                    }
+                                }catch(e){ /* noop */ }
                             }});
                             // pre-select type and toggle limit input visibility
                             setTimeout(()=>{
@@ -340,4 +457,48 @@ function renderDashboard(state){
             });
         });
 
+}
+
+async function showRedistributeModal(remaining, expenseCats){
+    if(!expenseCats || expenseCats.length === 0) return;
+    const rows = expenseCats.map(c => `
+        <div class="d-flex gap-2 align-items-center mb-2">
+            <div class="flex-grow-1">${c.name} <div class="small text-muted">current: $${Number(c.limit||0).toFixed(2)}</div></div>
+            <div style="width:10rem"><input type="number" min="0" step="0.01" class="form-control alloc-input" data-cat-id="${c.id}" value="0" /></div>
+        </div>
+    `).join('');
+
+    const html = `<div class="mb-2"><p class="small">Distribute the <strong>$${remaining.toFixed(2)}</strong> remaining across your expense categories. Values must sum to the remaining amount.</p>${rows}<div class="d-flex gap-2 mt-2"><button id="even-dist" class="btn btn-sm btn-outline-secondary">Evenly distribute</button><div class="flex-grow-1"></div><div class="small text-muted">Remaining must be fully allocated to save.</div></div></div>`;
+
+    await new Promise(res=>{
+        window.showModal({ title: 'Redistribute unallocated budget', html, saveText: 'Save', onSave: async ()=>{
+            const inputs = Array.from(document.querySelectorAll('.alloc-input'));
+            let sum = 0;
+            const assigns = inputs.map(inp=>{
+                const val = parseFloat(inp.value) || 0;
+                sum += val;
+                return { id: inp.getAttribute('data-cat-id'), val };
+            });
+            // allow small floating rounding tolerance
+            if(Math.abs(sum - remaining) > 0.01){ alert(`Allocated sum $${sum.toFixed(2)} does not equal remaining $${remaining.toFixed(2)}.`); return false; }
+            // apply updates: add assigned amounts to existing limits
+            for(const a of assigns){
+                const cat = expenseCats.find(c=>c.id === a.id);
+                if(!cat) continue;
+                const newLimit = (Number(cat.limit||0) + Number(a.val || 0));
+                await updateCategory(cat.id, { limit: newLimit });
+            }
+            const s = await getState(); renderDashboard(s);
+            res();
+        }, onCancel: ()=> res() });
+
+        // even distribute handler
+        setTimeout(()=>{
+            const evenBtn = document.getElementById('even-dist');
+            evenBtn?.addEventListener('click', ()=>{
+                const per = Number((remaining / expenseCats.length).toFixed(2));
+                document.querySelectorAll('.alloc-input').forEach(i=> i.value = per);
+            });
+        }, 10);
+    });
 }

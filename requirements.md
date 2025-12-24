@@ -19,9 +19,8 @@ User inputs Budget Base Amount (the fixed pool of money to be divided).
 
 User adds Categories:
 
-Expense categories: each has a limit.
-
-Income categories: no limit.
+- Expense categories: each has a numeric limit.
+- Income categories: no limit (income categories do not store or enforce limits).
 
 App initializes the dashboard using these inputs.
 
@@ -73,17 +72,13 @@ Editing the budget base amount.
 
 Enforcement Rules:
 
-Expense transactions cannot exceed category limit.
-
-If a transaction causes a category to exceed its limit:
-
-Prompt user to transfer limit from another expense category.
-
-The donor category’s limit decreases by the transferred amount.
-
-The recipient category’s limit increases accordingly.
-
-If total expenses exceed the Budget Base, prompt user to first increase the base before logging the transaction.
+- Expense transactions cannot exceed the category's numeric limit.
+- If a transaction would make a category exceed its limit the app must:
+	- Prompt the user to either transfer available funds from another expense category, increase the Budget Base, or cancel the transaction.
+	- Transfers may only be taken from other expense categories and are limited to the donor category's available funds (donor limit minus donor spent).
+	- When a transfer is completed the donor category's limit decreases by the transferred amount and the recipient category's limit increases by the same amount.
+- If total expenses would exceed the Budget Base, the app prompts the user to increase the Budget Base or cancel the operation.
+- Editing transactions must be validated the same way as adding them: edits that would make a category or the Budget Base exceed their limits are blocked unless the user completes a valid transfer or increases the Budget Base via the provided UI.
 
 4. Transactions Page
 

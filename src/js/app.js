@@ -30,7 +30,7 @@ async function showOnboarding(isRestarting = false){
             <h3 class="h5 fw-semibold">${isRestarting ? 'Restart' : 'Welcome'} — Setup your month</h3>
             <div class="mt-3">
                 <label class="form-label small">Month</label>
-                <input id="onboard-month" type="month" class="form-control" />
+                <input id="onboard-month" type="text" class="form-control" placeholder="e.g. 01-2025" />
                 <label class="form-label small mt-2">Base budget</label>
                 <input id="onboard-base" type="number" step="0.01" class="form-control" placeholder="0.00" />
 
@@ -72,6 +72,23 @@ async function showOnboarding(isRestarting = false){
             </select>
             <button class="btn btn-link text-danger p-0">Remove</button>
         `;
+        // Toggle limit input visibility/disabled state based on type selection
+        const parts = row.querySelectorAll('input,select');
+        const nameInput = parts[0];
+        const limitInput = parts[1];
+        const typeSelect = parts[2];
+        function toggleLimit(){
+            if(typeSelect.value === 'income'){
+                limitInput.style.display = 'none';
+                limitInput.disabled = true;
+                limitInput.value = '';
+            } else {
+                limitInput.style.display = 'block';
+                limitInput.disabled = false;
+            }
+        }
+        typeSelect.addEventListener('change', toggleLimit);
+        toggleLimit();
         row.querySelector('button').addEventListener('click', () => row.remove());
         return row;
     }
@@ -131,11 +148,15 @@ async function showOnboarding(isRestarting = false){
     // Save button
     saveBtn.addEventListener('click', async () => {
         console.log('[showOnboarding] save clicked');
-        const month = document.getElementById('onboard-month').value;
+        const rawMonth = document.getElementById('onboard-month').value.trim();
         const baseBudget = parseFloat(document.getElementById('onboard-base').value);
 
         // Validate inputs
-        if(!month){ alert('Please choose a month to continue.'); return; }
+        // Expect MM-YYYY for onboarding
+        const monthRegex = /^(0[1-9]|1[0-2])-(\d{4})$/; // MM-YYYY
+        const m = rawMonth.match(monthRegex);
+        if(!rawMonth || !m){ alert('Please enter a month in MM-YYYY format (e.g. 01-2025).'); return; }
+        const month = `${m[2]}-${m[1]}`; // convert to YYYY-MM
         if(Number.isNaN(baseBudget) || baseBudget < 0){ alert('Base budget must be a number ≥ 0.'); return; }
 
         // Collect categories
@@ -172,6 +193,8 @@ async function showOnboarding(isRestarting = false){
         // Reset to new month and reload pages
         console.log('[showOnboarding] calling resetForNewMonth');
         await resetForNewMonth({ month, baseBudget, categories });
+        // Show confirmation toast
+        try{ window.showToast('Saved successfully'); }catch(e){}
         modal.remove();
         
         if (window.initDashboard) window.initDashboard();
@@ -201,6 +224,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.initDashboard) window.initDashboard();
     if (window.initTransactions) window.initTransactions();
     if (window.initSettings) window.initSettings();
+
+    // Show persistent budget mismatch banner across pages (if any)
+    try{ window.showBudgetWarningBanner?.(); }catch(e){/* noop */}
 });
 
 // Small toast helper for brief success/info messages
@@ -226,6 +252,36 @@ window.showToast = function(message, { timeout = 3000 } = {}){
     }catch(e){ console.warn('showToast failed', e); }
 };
 
+// Persistent banner: show when total category limits exceed base budget
+window.showBudgetWarningBanner = async function(){
+    try{
+        const state = await getState();
+        if(!state) return;
+        const base = Number(state.meta?.baseBudget || 0);
+        const totalAssigned = (state.categories || []).filter(c=>c.type!=='income').reduce((s,c)=>s + Number(c.limit||0),0);
+        const existing = document.getElementById('budget-mismatch-banner');
+        // only show when base > 0 and assigned > base
+        if(base > 0 && totalAssigned > base){
+            // remove existing then re-add to refresh content
+            if(existing) existing.remove();
+            const diff = totalAssigned - base;
+            const banner = document.createElement('div');
+            banner.id = 'budget-mismatch-banner';
+            banner.className = 'alert alert-danger d-flex justify-content-between align-items-center';
+            banner.style.position = 'sticky';
+            banner.style.top = '0';
+            banner.style.zIndex = 1050;
+            banner.innerHTML = `<div class="small">Warning: your expense category limits total <strong>$${totalAssigned.toFixed(2)}</strong>, which exceeds your Base Budget <strong>$${base.toFixed(2)}</strong> by <strong>$${diff.toFixed(2)}</strong>. Adjust limits or transactions.</div><div><button id="dismiss-budget-mismatch" class="btn btn-sm btn-secondary me-2">Dismiss</button></div>`;
+            const headerEl = document.getElementById('app-header');
+            if(headerEl && headerEl.parentNode) headerEl.parentNode.insertBefore(banner, headerEl.nextSibling);
+            else document.body.insertBefore(banner, document.body.firstChild);
+            banner.querySelector('#dismiss-budget-mismatch')?.addEventListener('click', ()=> banner.remove());
+        } else {
+            if(existing) existing.remove();
+        }
+    }catch(e){ console.warn('showBudgetWarningBanner error', e); }
+}
+
 // Helper to unregister service workers and clear Cache Storage (best-effort)
 window.clearServiceWorkersAndCaches = async function(){
     try{
@@ -250,6 +306,8 @@ window.addEventListener('appStateChanged', async (e) => {
             // Re-initialize dashboard to refresh UI
             window.initDashboard();
         }
+        // Refresh global budget warning banner when state changes
+        try{ window.showBudgetWarningBanner?.(); }catch(e){/* noop */}
     }catch(err){ console.error('appStateChanged handler error', err); }
 });
 
@@ -286,6 +344,7 @@ window.showModal = function({ title = '', html = '', onSave = null, saveText = '
             }
         }
         modal.remove();
+        try{ window.showToast('Saved successfully'); }catch(e){}
     });
     return modal;
 }
@@ -293,13 +352,17 @@ window.showModal = function({ title = '', html = '', onSave = null, saveText = '
 // Simple date formatter: yyyy-mm-dd -> dd-mm-yyyy
 window.formatDate = function(dateStr){
     if(!dateStr) return '';
-    const d = new Date(dateStr);
-    if(isNaN(d)){
-        // try parsing yyyy-mm-dd
-        const parts = dateStr.split('-');
-        if(parts.length>=3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        return dateStr;
+    // Prefer parsing explicit YYYY-MM-DD to avoid timezone shifts from Date constructor
+    const isoMatch = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(isoMatch){
+        const yyyy = isoMatch[1];
+        const mm = isoMatch[2];
+        const dd = isoMatch[3];
+        return `${dd}-${mm}-${yyyy}`;
     }
+    // Fallback to Date parsing for other formats
+    const d = new Date(dateStr);
+    if(isNaN(d)) return dateStr;
     const dd = String(d.getDate()).padStart(2,'0');
     const mm = String(d.getMonth()+1).padStart(2,'0');
     const yyyy = d.getFullYear();
