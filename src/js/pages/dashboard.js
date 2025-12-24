@@ -72,14 +72,29 @@ async function showAddCategoryModal(){
             </div>
         </div>
     `;
-    window.showModal({ title: 'Add category', html, onSave: async ()=>{
-        const name = document.getElementById('modal-cat-name').value || 'Unnamed';
-        const limit = parseFloat(document.getElementById('modal-cat-limit').value) || 0;
-        const type = document.getElementById('modal-cat-type').value || 'expense';
-        if(!name.trim()){ alert('Category name cannot be empty.'); return false; }
-        await addCategory({ name, limit, type });
-        const s = await getState(); renderDashboard(s);
-    }});
+        window.showModal({ title: 'Add category', html, onSave: async ()=>{
+            const name = document.getElementById('modal-cat-name').value || 'Unnamed';
+            const type = document.getElementById('modal-cat-type').value || 'expense';
+            let limit;
+            if(type === 'expense'){
+                const raw = document.getElementById('modal-cat-limit').value;
+                limit = raw === '' ? 0 : parseFloat(raw);
+                if(Number.isNaN(limit) || limit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+            } else {
+                limit = undefined;
+            }
+            await addCategory({ name, limit, type });
+            const s = await getState(); renderDashboard(s);
+        }});
+        // Toggle limit input visibility when type changes
+        setTimeout(()=>{
+            const typeSel = document.getElementById('modal-cat-type');
+            const limitInput = document.getElementById('modal-cat-limit');
+            if(!typeSel || !limitInput) return;
+            function toggle(){ limitInput.style.display = (typeSel.value === 'income') ? 'none' : 'block'; }
+            typeSel.addEventListener('change', toggle);
+            toggle();
+        }, 10);
 }
 
 function renderDashboard(state){
@@ -137,16 +152,17 @@ function renderDashboard(state){
         expenseList.innerHTML = '';
         const incomeListContainer = document.createElement('div');
         incomeListContainer.id = 'income-category-list';
-        incomeListContainer.className = 'mt-3';
+        // give extra bottom margin so income and expense lists are visually separated
+        incomeListContainer.className = 'mt-3 mb-4';
 
         // render income categories separately
         const incomeCats = state.categories.filter(c => c.type === 'income');
         const expenseCats = state.categories.filter(c => c.type !== 'income');
 
         // show income categories
-        // show income categories separately with progress bars (use category limit as target if present)
+        // show income categories separately with progress bars (income categories have no limits)
         if(incomeCats.length){
-            const header = document.createElement('h4'); header.className = 'small fw-semibold'; header.textContent = 'Income categories (earned)';
+            const header = document.createElement('h4'); header.className = 'small fw-semibold'; header.textContent = 'Income';
             incomeListContainer.appendChild(header);
 
             // compute fallback denominator if no limits present
@@ -156,14 +172,8 @@ function renderDashboard(state){
 
             incomeCats.forEach(cat => {
                 const earned = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-                const target = Number(cat.limit) || 0; // allow limit as income goal
-                const remaining = Math.max(0, target - earned);
-                let pct = 0;
-                if(target > 0){
-                    pct = Math.min(100, Math.round((earned / target) * 100));
-                } else {
-                    pct = Math.min(100, Math.round((earned / maxEarned) * 100));
-                }
+                // Income categories have no stored limits. Use relative earned values for a progress visualization.
+                const pct = maxEarned > 0 ? Math.min(100, Math.round((earned / maxEarned) * 100)) : 0;
 
                 const li = document.createElement('div');
                 li.className = 'py-2 border-bottom';
@@ -171,9 +181,9 @@ function renderDashboard(state){
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="fw-medium">${cat.name}</div>
-                            <div class="small text-muted">Earned: $${earned.toFixed(2)}${target ? ` | Remaining: $${remaining.toFixed(2)}` : ''}</div>
+                            <div class="small text-muted">Earned: $${earned.toFixed(2)}</div>
                         </div>
-                        <div class="small text-success fw-semibold">${target ? '$' + Number(target).toFixed(2) + ' target' : 'No target'}</div>
+                        <div class="small text-success fw-semibold">Income</div>
                     </div>
                     <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
                         <div class="h-3 bg-success" style="width:${pct}%"></div>
@@ -187,6 +197,13 @@ function renderDashboard(state){
                 incomeListContainer.appendChild(li);
             });
                 expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
+                // If there are expense categories, add a clear header for them below the income list
+                if(expenseCats.length){
+                    const expenseHeader = document.createElement('h4');
+                    expenseHeader.className = 'small fw-semibold mt-4';
+                    expenseHeader.textContent = 'Expenses';
+                    expenseList.parentElement.insertBefore(expenseHeader, expenseList);
+                }
                 // attach edit/delete handlers for income categories (same logic as expenses)
                 incomeListContainer.querySelectorAll('button[data-action]').forEach(btn=>{
                     btn.addEventListener('click', async ()=>{
@@ -206,19 +223,35 @@ function renderDashboard(state){
                                 <div class="mb-3">
                                     <input id="edit-cat-name" class="form-control mb-2" value="${cat.name}" />
                                     <div class="d-flex gap-2">
-                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit}" />
+                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit == null ? '' : cat.limit}" />
                                         <select id="edit-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
                                     </div>
                                 </div>
                             `;
                             window.showModal({ title: 'Edit category', html, onSave: async ()=>{
                                 const newName = document.getElementById('edit-cat-name').value || cat.name;
-                                const newLimit = parseFloat(document.getElementById('edit-cat-limit').value);
                                 const newType = document.getElementById('edit-cat-type').value || 'expense';
-                                await updateCategory(id, { name: newName, limit: Number(isNaN(newLimit)?cat.limit:newLimit), type: newType });
+                                let newLimit;
+                                if(newType === 'expense'){
+                                    const raw = document.getElementById('edit-cat-limit').value;
+                                    newLimit = raw === '' ? 0 : parseFloat(raw);
+                                    if(Number.isNaN(newLimit) || newLimit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                } else {
+                                    newLimit = undefined;
+                                }
+                                await updateCategory(id, { name: newName, limit: newLimit, type: newType });
                                 const s2 = await getState(); renderDashboard(s2);
                             }});
-                            setTimeout(()=>{ document.getElementById('edit-cat-type').value = cat.type || 'expense'; }, 10);
+                            // pre-select type and toggle limit input visibility
+                            setTimeout(()=>{
+                                const typeEl = document.getElementById('edit-cat-type');
+                                const limitEl = document.getElementById('edit-cat-limit');
+                                if(!typeEl || !limitEl) return;
+                                function toggle(){ limitEl.style.display = (typeEl.value === 'income') ? 'none' : 'block'; }
+                                typeEl.addEventListener('change', toggle);
+                                typeEl.value = cat.type || 'expense';
+                                toggle();
+                            }, 10);
                         }
                     });
                 });
@@ -227,18 +260,19 @@ function renderDashboard(state){
     // show expense categories with bars and remaining balance
     expenseCats.forEach(cat => {
         const spent = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
-        const remaining = Math.max(0, Number(cat.limit) - spent);
-        const pct = cat.limit > 0 ? Math.min(100, Math.round((spent / cat.limit) * 100)) : 0;
+        const limit = (typeof cat.limit === 'number') ? Number(cat.limit) : 0;
+        const remaining = Math.max(0, limit - spent);
+        const pct = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
         const li = document.createElement('li');
         li.className = 'py-3';
         li.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <div class="fw-medium">${cat.name}</div>
-                    <div class="small text-muted">Spent: $${spent.toFixed(2)} | Remaining: $${remaining.toFixed(2)}</div>
+                        <div class="small text-muted">Spent: $${spent.toFixed(2)} | Remaining: $${remaining.toFixed(2)}</div>
                 </div>
                 <div class="small">
-                    <div class="fw-semibold">$${cat.limit.toFixed(2)} limit</div>
+                        <div class="fw-semibold">$${limit.toFixed(2)} limit</div>
                 </div>
             </div>
             <div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
@@ -273,20 +307,35 @@ function renderDashboard(state){
                                 <div class="mb-3">
                                     <input id="edit-cat-name" class="form-control mb-2" value="${cat.name}" />
                                     <div class="d-flex gap-2">
-                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit}" />
+                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit == null ? '' : cat.limit}" />
                                         <select id="edit-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
                                     </div>
                                 </div>
                             `;
                             window.showModal({ title: 'Edit category', html, onSave: async ()=>{
                                 const newName = document.getElementById('edit-cat-name').value || cat.name;
-                                const newLimit = parseFloat(document.getElementById('edit-cat-limit').value);
                                 const newType = document.getElementById('edit-cat-type').value || 'expense';
-                                await updateCategory(id, { name: newName, limit: Number(isNaN(newLimit)?cat.limit:newLimit), type: newType });
+                                let newLimit;
+                                if(newType === 'expense'){
+                                    const raw = document.getElementById('edit-cat-limit').value;
+                                    newLimit = raw === '' ? 0 : parseFloat(raw);
+                                    if(Number.isNaN(newLimit) || newLimit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                } else {
+                                    newLimit = undefined;
+                                }
+                                await updateCategory(id, { name: newName, limit: newLimit, type: newType });
                                 const s2 = await getState(); renderDashboard(s2);
                             }});
-                            // pre-select type
-                            setTimeout(()=>{ document.getElementById('edit-cat-type').value = cat.type || 'expense'; }, 10);
+                            // pre-select type and toggle limit visibility
+                            setTimeout(()=>{
+                                const typeEl = document.getElementById('edit-cat-type');
+                                const limitEl = document.getElementById('edit-cat-limit');
+                                if(!typeEl || !limitEl) return;
+                                function toggle(){ limitEl.style.display = (typeEl.value === 'income') ? 'none' : 'block'; }
+                                typeEl.addEventListener('change', toggle);
+                                typeEl.value = cat.type || 'expense';
+                                toggle();
+                            }, 10);
                 }
             });
         });

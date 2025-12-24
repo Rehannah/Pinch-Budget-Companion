@@ -82,11 +82,15 @@ async function showOnboarding(isRestarting = false){
         list.innerHTML = '';
         
         if(showExisting && state.categories.length > 0){
-            // Show existing categories as read-only labels
+            // Show existing categories as read-only labels. Do not show limits for income categories.
             state.categories.forEach(cat => {
                 const label = document.createElement('div');
                 label.className = 'small p-2 bg-light rounded mb-2';
-                label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
+                if(cat.type === 'expense'){
+                    label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
+                } else {
+                    label.textContent = `${cat.name} (${cat.type})`;
+                }
                 list.appendChild(label);
             });
         }
@@ -149,11 +153,16 @@ async function showOnboarding(isRestarting = false){
                 for(const r of rows){
                     const [nameInput, limitInput, typeSelect] = r.querySelectorAll('input,select');
                     const name = (nameInput.value || '').trim();
-                    const limit = Number(limitInput.value);
                     const type = typeSelect.value || 'expense';
+                    let limit;
+                    if(type === 'expense'){
+                        limit = Number(limitInput.value);
+                        if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
+                    } else {
+                        limit = undefined;
+                    }
 
                     if(!name){ alert('Category names cannot be empty.'); return; }
-                    if(Number.isNaN(limit) || limit < 0){ alert('Category limits must be numbers ≥ 0.'); return; }
                     categories.push({ name, limit, type });
                 }
             }
@@ -193,6 +202,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.initTransactions) window.initTransactions();
     if (window.initSettings) window.initSettings();
 });
+
+// Small toast helper for brief success/info messages
+window.showToast = function(message, { timeout = 3000 } = {}){
+    try{
+        const existing = document.getElementById('app-toast');
+        if(existing) existing.remove();
+        const t = document.createElement('div');
+        t.id = 'app-toast';
+        t.style.position = 'fixed';
+        t.style.right = '1rem';
+        t.style.top = '1rem';
+        t.style.zIndex = 9999;
+        t.style.background = 'rgba(16,24,40,0.95)';
+        t.style.color = '#fff';
+        t.style.padding = '0.6rem 1rem';
+        t.style.borderRadius = '0.5rem';
+        t.style.boxShadow = '0 6px 18px rgba(2,6,23,0.2)';
+        t.style.fontSize = '0.95rem';
+        t.textContent = message;
+        document.body.appendChild(t);
+        setTimeout(()=>{ t.style.transition = 'opacity 300ms'; t.style.opacity = '0'; setTimeout(()=>t.remove(), 320); }, timeout);
+    }catch(e){ console.warn('showToast failed', e); }
+};
+
+// Helper to unregister service workers and clear Cache Storage (best-effort)
+window.clearServiceWorkersAndCaches = async function(){
+    try{
+        if('serviceWorker' in navigator){
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for(const r of regs) await r.unregister();
+        }
+    }catch(e){ console.warn('SW unregister failed', e); }
+
+    try{
+        if('caches' in window){
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+    }catch(e){ console.warn('Clearing caches failed', e); }
+};
 
 // Listen for changes to the persisted state and update dashboard if present
 window.addEventListener('appStateChanged', async (e) => {

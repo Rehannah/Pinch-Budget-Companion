@@ -39,17 +39,30 @@ async function populateCategories(){
                         await new Promise(resolve => {
                             window.showModal({ title: 'Add category', html, saveText: 'Add', onSave: async ()=>{
                                 const name = (document.getElementById('new-cat-name').value || '').trim();
-                                const limitRaw = document.getElementById('new-cat-limit').value;
-                                const limit = limitRaw === '' ? NaN : parseFloat(limitRaw);
                                 const type = document.getElementById('new-cat-type').value || 'expense';
-                                // validation: name required, limit must be number >= 0 for expense
+                                let limit;
+                                if(type === 'expense'){
+                                    const limitRaw = document.getElementById('new-cat-limit').value;
+                                    limit = limitRaw === '' ? 0 : parseFloat(limitRaw);
+                                    if(Number.isNaN(limit) || limit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                } else {
+                                    limit = undefined;
+                                }
                                 if(!name){ alert('Category name is required.'); return false; }
-                                if(type === 'expense' && (Number.isNaN(limit) || limit < 0)){ alert('Limit must be a number ≥ 0.'); return false; }
-                                const newCat = await addCategory({ name, limit: Number(isNaN(limit)?0:limit), type });
+                                const newCat = await addCategory({ name, limit, type });
                                 await populateCategories();
                                 sel.value = newCat.id;
                                 resolve();
                             }, onCancel: ()=> resolve() });
+                            // toggle limit input visibility
+                            setTimeout(()=>{
+                                const typeSel = document.getElementById('new-cat-type');
+                                const limitEl = document.getElementById('new-cat-limit');
+                                if(!typeSel || !limitEl) return;
+                                function toggle(){ limitEl.style.display = (typeSel.value === 'income') ? 'none' : 'block'; }
+                                typeSel.addEventListener('change', toggle);
+                                toggle();
+                            }, 10);
                         });
         }
     });
@@ -86,13 +99,29 @@ function attachForm(){
                             await new Promise(res2 => {
                                 window.showModal({ title: 'Add category', html: addHtml, saveText: 'Add', onSave: async ()=>{
                                     const name = document.getElementById('new-cat-name').value || 'Unnamed';
-                                    const limit = parseFloat(document.getElementById('new-cat-limit').value) || 0;
                                     const type = document.getElementById('new-cat-type').value || 'expense';
+                                    let limit;
+                                    if(type === 'expense'){
+                                        const raw = document.getElementById('new-cat-limit').value;
+                                        limit = raw === '' ? 0 : parseFloat(raw);
+                                        if(Number.isNaN(limit) || limit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                    } else {
+                                        limit = undefined;
+                                    }
                                     const newCat = await addCategory({ name, limit, type });
                                     await populateCategories();
                                     categoryId = newCat.id;
                                     res2();
                                 }, onCancel: ()=> res2() });
+                                // toggle limit in nested modal
+                                setTimeout(()=>{
+                                    const typeSel = document.getElementById('new-cat-type');
+                                    const limitEl = document.getElementById('new-cat-limit');
+                                    if(!typeSel || !limitEl) return;
+                                    function toggle(){ limitEl.style.display = (typeSel.value === 'income') ? 'none' : 'block'; }
+                                    typeSel.addEventListener('change', toggle);
+                                    toggle();
+                                }, 10);
                             });
                             resolve();
                         }, onCancel: ()=> resolve() });
@@ -111,7 +140,7 @@ function attachForm(){
                     const otherCats = s.categories.filter(c=>c.id !== cat.id && c.type !== 'income');
                     const optionsHtml = `
                         <div class="mb-2">
-                            <p class="small">Category <strong>${cat.name}</strong> limit: $${cat.limit}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
+                            <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toFixed(2)}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
                             <div>
                                 <label class="form-label small">Choose action</label>
                                 <select id="transfer-action" class="form-select">
@@ -151,7 +180,7 @@ function attachForm(){
                         function renderExtra(){
                             const val = actionEl.value;
                             if(val === 'transfer'){
-                                extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit ${c.limit})</option>`).join('')}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${Math.min(cat.limit, amount)}" />`;
+                                extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${otherCats.map(c=>`<option value="${c.id}">${c.name} (limit $${(typeof c.limit==='number'?Number(c.limit).toFixed(2):'0.00')})</option>`).join('')}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${Math.min(Number(cat.limit||0), amount)}" />`;
                             } else if(val === 'increase'){
                                 extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${amount}" />`;
                             } else { extra.innerHTML = '' }

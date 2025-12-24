@@ -131,4 +131,4 @@ Clears transaction records.
 
 Prompts for new month and base setup again.
 
-Optionally can save categories and their limits to be used for the next month's budget.
+Optionally can save categories and their limits to be used for the next month's budget, otherwise all categories and their limits are removed for the next month.

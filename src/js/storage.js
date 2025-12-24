@@ -53,7 +53,9 @@ async function setAutoSaveToFile(enabled = false){
 }
 
 async function resetForNewMonth({ month, baseBudget, categories } = {}) {
-    // Reset for new month: set month/baseBudget and clear transactions; optionally replace categories
+    // Reset for new month: set month/baseBudget and clear transactions; optionally replace categories.
+    // Note: pass `categories: []` explicitly if you want to clear categories. If `categories` is
+    // omitted (undefined), existing categories are preserved.
     const state = await getState();
     const newState = {
         meta: {
@@ -61,9 +63,16 @@ async function resetForNewMonth({ month, baseBudget, categories } = {}) {
             month: month || null,
             baseBudget: Number(baseBudget || 0)
         },
-        categories: (categories && categories.length > 0)
-            ? categories.map((c, i) => ({ id: `c${Date.now()}_${i}`, name: c.name, limit: Number(c.limit || 0), type: c.type || 'expense' }))
-            : state.categories, // preserve existing categories if not provided
+        categories: (typeof categories === 'undefined')
+            ? state.categories // preserve existing categories when not provided
+            : // when categories is provided (even an empty array), use it as authoritative
+            (Array.isArray(categories) ? categories.map((c, i) => ({
+                id: `c${Date.now()}_${i}`,
+                name: c.name,
+                // income categories do not have a limit
+                limit: (c.type === 'income' ? undefined : (typeof c.limit !== 'undefined' ? Number(c.limit) : 0)),
+                type: c.type || 'expense'
+            })) : state.categories),
         transactions: []
     };
     await saveState(newState);
@@ -82,7 +91,13 @@ async function clearTransactionsOnly() {
 async function addCategory({ name, limit = 0, type = 'expense' } = {}) {
     const state = await getState();
     const id = `c${Date.now()}`;
-    const category = { id, name: String(name || 'Unnamed'), limit: Number(isNaN(Number(limit)) ? 0 : Number(limit)), type: type === 'income' ? 'income' : 'expense' };
+    // For income categories, we omit the limit (no notion of limit).
+    const category = {
+        id,
+        name: String(name || 'Unnamed'),
+        limit: type === 'income' ? undefined : Number(isNaN(Number(limit)) ? 0 : Number(limit)),
+        type: type === 'income' ? 'income' : 'expense'
+    };
     state.categories.push(category);
     await saveState(state);
     return category;
@@ -93,8 +108,21 @@ async function updateCategory(id, { name, limit, type } = {}){
     const cat = state.categories.find(c => c.id === id);
     if(!cat) return null;
     if(typeof name !== 'undefined') cat.name = String(name);
-    if(typeof limit !== 'undefined') cat.limit = Number(isNaN(Number(limit)) ? cat.limit : Number(limit));
-    if(typeof type !== 'undefined') cat.type = type === 'income' ? 'income' : 'expense';
+    // If type is changed to income, remove the limit entirely.
+    if(typeof type !== 'undefined'){
+        const normalized = type === 'income' ? 'income' : 'expense';
+        cat.type = normalized;
+        if(normalized === 'income'){
+            delete cat.limit;
+        } else {
+            // ensure a numeric limit exists for expense categories
+            if(typeof limit === 'undefined' && typeof cat.limit === 'undefined') cat.limit = 0;
+        }
+    }
+    if(typeof limit !== 'undefined'){
+        // only set limit for expense categories
+        if(cat.type !== 'income') cat.limit = Number(isNaN(Number(limit)) ? cat.limit : Number(limit));
+    }
     await saveState(state);
     return cat;
 }
@@ -110,7 +138,7 @@ async function removeCategory(id) {
 async function updateCategoryLimit(id, newLimit) {
     const state = await getState();
     const cat = state.categories.find(c => c.id === id);
-    if (cat) cat.limit = Number(newLimit);
+    if (cat && cat.type !== 'income') cat.limit = Number(newLimit);
     await saveState(state);
     return cat;
 }
@@ -141,13 +169,16 @@ async function deleteTransaction(id) {
 }
 
 // Transfer between categories (user-driven when category maxed out)
-// Moves amount from source category limit to target category limit.
+// Moves amount from source category limit to destination category limit.
 async function transferBetweenCategories(fromCategoryId, toCategoryId, amount) {
     const state = await getState();
     const from = state.categories.find(c => c.id === fromCategoryId);
     const to = state.categories.find(c => c.id === toCategoryId);
     amount = Number(amount);
     if (!from || !to) throw new Error('Invalid category');
+    // only allow transfers between expense categories that have numeric limits
+    if (from.type === 'income' || to.type === 'income') throw new Error('Transfers only supported between expense categories');
+    if (typeof from.limit !== 'number' || typeof to.limit !== 'number') throw new Error('Invalid category limits for transfer');
     if (from.limit < amount) throw new Error('Insufficient funds in source category');
     from.limit -= amount;
     to.limit += amount;
