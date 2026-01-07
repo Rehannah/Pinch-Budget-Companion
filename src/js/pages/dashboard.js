@@ -107,7 +107,7 @@ async function showAddCategoryModal(){
         <div class="mb-3">
             <input id="modal-cat-name" class="form-control mb-2" placeholder="Category name" />
             <div class="d-flex gap-2">
-                <input id="modal-cat-limit" class="form-control flex-grow-1" placeholder="Limit (optional for income)" />
+                <input id="modal-cat-limit" class="form-control flex-grow-1" placeholder="Limit" />
                 <select id="modal-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
             </div>
         </div>
@@ -135,15 +135,8 @@ async function showAddCategoryModal(){
                     const totalAssigned = s.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
                     const remaining = Math.max(0, base - totalAssigned);
                     if(remaining > 0){
-                        await new Promise(res => {
-                            const html2 = `<p class="small">You have $${remaining.toFixed(2)} of your base budget unallocated. Do you want to add it to this category now?</p>`;
-                            window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
-                                const newLimit = (Number(newCat.limit||0) || 0) + remaining;
-                                await updateCategory(newCat.id, { limit: newLimit });
-                                const s2 = await getState(); renderDashboard(s2);
-                                res();
-                            }, onCancel: ()=> res() });
-                        });
+                        // Informational only: do not show modal that auto-prompts allocation here.
+                        // The app shows an inline warning on the Transactions page instead.
                     }
                 }
             }catch(e){ /* noop */ }
@@ -220,6 +213,7 @@ function renderDashboard(state){
             const totalAssigned = state.categories.filter(c=>c.type!=='income').reduce((s,c)=>s + Number(c.limit||0),0);
             const remaining = Math.max(0, base - totalAssigned);
             if(base > 0 && remaining > 0){
+                console.debug('[renderDashboard] adding unallocated banner, remaining=', remaining);
                 const banner = document.createElement('div');
                 banner.id = 'unallocated-banner';
                 banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
@@ -346,15 +340,8 @@ function renderDashboard(state){
                                         const totalAssigned = s2.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
                                         const remaining = Math.max(0, base - totalAssigned);
                                         if(remaining > 0){
-                                            await new Promise(res => {
-                                                const html2 = `<p class="small">You have $${remaining.toFixed(2)} of your base budget unallocated. Do you want to add it to this category now?</p>`;
-                                                window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
-                                                    const cur = (s2.categories.find(c=>c.id===id)?.limit) || 0;
-                                                    await updateCategory(id, { limit: Number(cur) + remaining });
-                                                    const s3 = await getState(); renderDashboard(s3);
-                                                    res();
-                                                }, onCancel: ()=> res() });
-                                            });
+                                            // Informational only: do not show modal that auto-prompts allocation here.
+                                            // Users will see the inline warning when adding transactions.
                                         }
                                     }
                                 }catch(e){ /* noop */ }

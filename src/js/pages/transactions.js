@@ -1,5 +1,8 @@
 import { getState, addTransaction, addCategory, updateCategory, editTransaction as editTx, deleteTransaction as deleteTx, transferBetweenCategories } from '../storage.js';
 
+// Debug: confirm module load
+console.log('transactions.js loaded');
+
 window.initTransactions = async function(){
     await populateCategories();
     await updateBaseMonthLabel();
@@ -86,18 +89,9 @@ async function populateCategories(){
                                     if(base > 0){
                                         const totalAssigned = s.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
                                         const remaining = Math.max(0, base - totalAssigned);
-                                        if(remaining > 0){
-                                            await new Promise(res => {
-                                                const html2 = `<p class="small">You have $${remaining.toFixed(2)} unallocated from your base budget. Add it to this category?</p>`;
-                                                window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
-                                                    const newLimit = (Number(newCat.limit||0) || 0) + remaining;
-                                                    await updateCategory(newCat.id, { limit: newLimit });
-                                                    await populateCategories();
-                                                    sel.value = newCat.id;
-                                                    res();
-                                                }, onCancel: ()=> res() });
-                                            });
-                                        }
+                                            if(remaining > 0){
+                                                // Do not show modal here; the transaction form displays an inline warning instead.
+                                            }
                                     }
                                 }catch(e){}
                                 resolve();
@@ -119,7 +113,64 @@ async function populateCategories(){
 function attachForm(){
     const form = document.getElementById('transaction-form');
     if(!form) return;
+        // show inline warning about unallocated base budget when relevant
+        const amountEl = document.getElementById('transaction-amount');
+        const categoryEl = document.getElementById('transaction-category');
+        async function updateUnallocatedWarning(){
+            try{
+                const st = await getState();
+                const base = Number(st.meta.baseBudget || 0);
+                const expenseCats = st.categories.filter(c=>c.type !== 'income');
+                const totalAssigned = expenseCats.reduce((s,c)=>s + Number(c.limit || 0), 0);
+                const remaining = Math.max(0, base - totalAssigned);
+
+                // remove any previous inline warning
+                const oldInline = document.getElementById('unallocated-warning');
+                if(oldInline) oldInline.remove();
+
+                // show banner only for expense transactions
+                const typeEl = document.getElementById('transaction-type');
+                const isExpense = typeEl && typeEl.value === 'expense';
+                const existingBanner = document.getElementById('unallocated-banner-transactions');
+
+                if(base > 0 && remaining > 0 && isExpense){
+                    if(!existingBanner){
+                        const container = document.querySelector('.container');
+                        const banner = document.createElement('div');
+                        banner.id = 'unallocated-banner-transactions';
+                        banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
+                        banner.innerHTML = `<div class="small">You have $${remaining.toFixed(2)} of your base budget unallocated.</div><div><button id="dismiss-unalloc-tx" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
+                        if(container){
+                            const firstSection = container.querySelector('section');
+                            if(firstSection && firstSection.parentNode) firstSection.parentNode.insertBefore(banner, firstSection);
+                            else container.insertBefore(banner, container.firstChild);
+                        } else {
+                            document.body.insertBefore(banner, document.body.firstChild);
+                        }
+                        banner.querySelector('#dismiss-unalloc-tx')?.addEventListener('click', ()=> banner.remove());
+                    } else {
+                        // update text
+                        const textDiv = existingBanner.querySelector('div');
+                        if(textDiv) textDiv.textContent = `You have $${remaining.toFixed(2)} of your base budget unallocated.`;
+                    }
+                } else {
+                    if(existingBanner) existingBanner.remove();
+                }
+            }catch(e){ /* noop */ }
+        }
+
+        // wire input/change events so the banner appears before submit
+        amountEl?.addEventListener('input', updateUnallocatedWarning);
+        categoryEl?.addEventListener('change', updateUnallocatedWarning);
+        document.getElementById('transaction-type')?.addEventListener('change', updateUnallocatedWarning);
+        // initial check
+        updateUnallocatedWarning();
+
+        // also update the warning immediately when attempting to submit so user sees latest state
+
         form.addEventListener('submit', async (e)=>{
+        // refresh warning right before submit so user sees it (non-blocking)
+        try{ await updateUnallocatedWarning(); }catch(e){}
         e.preventDefault();
         const type = document.getElementById('transaction-type').value;
     let categoryId = document.getElementById('transaction-category').value;
@@ -176,16 +227,7 @@ function attachForm(){
                                             const totalAssigned = s.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
                                             const remaining = Math.max(0, base - totalAssigned);
                                             if(remaining > 0){
-                                                await new Promise(res3 => {
-                                                    const html2 = `<p class="small">You have $${remaining.toFixed(2)} unallocated from your base budget. Add it to this category?</p>`;
-                                                    window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'Add to this category', onSave: async ()=>{
-                                                        const newLimit = (Number(newCat.limit||0) || 0) + remaining;
-                                                        await updateCategory(newCat.id, { limit: newLimit });
-                                                        await populateCategories();
-                                                        categoryId = newCat.id;
-                                                        res3();
-                                                    }, onCancel: ()=> res3() });
-                                                });
+                                                // Do not show modal here; the transaction form displays an inline warning instead.
                                             }
                                         }
                                     }catch(e){}

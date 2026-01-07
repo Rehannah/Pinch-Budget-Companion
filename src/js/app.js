@@ -308,8 +308,39 @@ window.addEventListener('appStateChanged', async (e) => {
         }
         // Refresh global budget warning banner when state changes
         try{ window.showBudgetWarningBanner?.(); }catch(e){/* noop */}
+        // Refresh unallocated-banner on dashboard when state changes
+        try{ window.showUnallocatedBanner?.(); }catch(e){/* noop */}
     }catch(err){ console.error('appStateChanged handler error', err); }
 });
+
+// Show persistent unallocated budget banner on dashboard pages
+window.showUnallocatedBanner = async function(){
+    try{
+        const state = await getState();
+        if(!state) return;
+        const base = Number(state.meta?.baseBudget || 0);
+        const totalAssigned = (state.categories || []).filter(c=>c.type!=='income').reduce((s,c)=>s + Number(c.limit||0),0);
+        const remaining = Math.max(0, base - totalAssigned);
+        console.debug('[showUnallocatedBanner] base=', base, 'remaining=', remaining);
+        const existing = document.getElementById('unallocated-banner');
+        if(base > 0 && remaining > 0){
+            if(existing) existing.remove();
+            const banner = document.createElement('div');
+            banner.id = 'unallocated-banner';
+            banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
+            banner.innerHTML = `<div class="small">You have $${remaining.toFixed(2)} of your base budget unallocated.</div><div><button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button><button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
+            const container = document.querySelector('.container');
+            const firstSection = container?.querySelector('section');
+            if(firstSection && firstSection.parentNode) firstSection.parentNode.insertBefore(banner, firstSection.nextSibling);
+            else if(container) container.insertBefore(banner, container.firstChild);
+            else document.body.insertBefore(banner, document.body.firstChild);
+            banner.querySelector('#dismiss-unalloc')?.addEventListener('click', ()=> banner.remove());
+            banner.querySelector('#redistribute-btn')?.addEventListener('click', ()=> showRedistributeModal(remaining, state.categories.filter(c=>c.type!=='income')));
+        } else {
+            if(existing) existing.remove();
+        }
+    }catch(e){ /* noop */ }
+}
 
 // Small modal utility used by pages to show forms/prompts
 window.showModal = function({ title = '', html = '', onSave = null, saveText = 'Save', onCancel = null }){

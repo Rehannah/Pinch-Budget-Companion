@@ -1,0 +1,8 @@
+/* Placeholder components styles to avoid 404/MIME warnings */
+/* Add component-specific overrides here */
+
+.alert.small{ font-size:0.85rem; }
+.h-3{ height:0.75rem; }
+.bg-surface{ background-color:#f8f9fa; }
+
+/* Keep minimal so MIME type is correct and file serves */

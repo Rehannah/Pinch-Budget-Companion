@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0;url=/index.html">
+    <script>
+      // Fallback: preserve original path in the hash so SPA can handle it
+      try {
+        const p = location.pathname + location.search + location.hash;
+        location.replace('/index.html#' + encodeURIComponent(p));
+      } catch (e) {
+        location.replace('/index.html');
+      }
+    </script>
+    <title>Redirecting…</title>
+  </head>
+  <body>Redirecting…</body>
+</html>
