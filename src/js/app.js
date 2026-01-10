@@ -104,7 +104,7 @@ async function showOnboarding(isRestarting = false){
                 const label = document.createElement('div');
                 label.className = 'small p-2 bg-light rounded mb-2';
                 if(cat.type === 'expense'){
-                    label.textContent = `${cat.name} - $${Number(cat.limit).toFixed(2)} (${cat.type})`;
+                    label.textContent = `${cat.name} - $${Number(cat.limit).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} (${cat.type})`;
                 } else {
                     label.textContent = `${cat.name} (${cat.type})`;
                 }
@@ -271,7 +271,7 @@ window.showBudgetWarningBanner = async function(){
             banner.style.position = 'sticky';
             banner.style.top = '0';
             banner.style.zIndex = 1050;
-            banner.innerHTML = `<div class="small">Warning: your expense category limits total <strong>$${totalAssigned.toFixed(2)}</strong>, which exceeds your Base Budget <strong>$${base.toFixed(2)}</strong> by <strong>$${diff.toFixed(2)}</strong>. Adjust limits or transactions.</div><div><button id="dismiss-budget-mismatch" class="btn btn-sm btn-secondary me-2">Dismiss</button></div>`;
+            banner.innerHTML = `<div class="small">Warning: your expense category limits total <strong>$${totalAssigned.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</strong>, which exceeds your Base Budget <strong>$${base.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</strong> by <strong>$${diff.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</strong>. Adjust limits or transactions.</div><div><button id="dismiss-budget-mismatch" class="btn btn-sm btn-secondary me-2">Dismiss</button></div>`;
             const headerEl = document.getElementById('app-header');
             if(headerEl && headerEl.parentNode) headerEl.parentNode.insertBefore(banner, headerEl.nextSibling);
             else document.body.insertBefore(banner, document.body.firstChild);
@@ -328,7 +328,7 @@ window.showUnallocatedBanner = async function(){
             const banner = document.createElement('div');
             banner.id = 'unallocated-banner';
             banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
-            banner.innerHTML = `<div class="small">You have $${remaining.toFixed(2)} of your base budget unallocated.</div><div><button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button><button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
+            banner.innerHTML = `<div class="small">You have $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} of your base budget unallocated.</div><div><button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button><button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
             const container = document.querySelector('.container');
             const firstSection = container?.querySelector('section');
             if(firstSection && firstSection.parentNode) firstSection.parentNode.insertBefore(banner, firstSection.nextSibling);

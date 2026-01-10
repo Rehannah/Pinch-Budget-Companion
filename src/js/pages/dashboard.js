@@ -41,7 +41,7 @@ async function showEditBaseModal(state){
             if(newBase < totalAssigned){
                 const confirmed = await new Promise(res => {
                     const diff = totalAssigned - newBase;
-                    const html2 = `<p class="small">The sum of your expense category limits is <strong>$${totalAssigned.toFixed(2)}</strong>, which exceeds the new base by <strong>$${diff.toFixed(2)}</strong>. You should adjust category limits or transaction data. Save anyway?</p>`;
+                    const html2 = `<p class="small">The sum of your expense category limits is <strong>$${totalAssigned.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</strong>, which exceeds the new base by <strong>$${diff.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</strong>. You should adjust category limits or transaction data. Save anyway?</p>`;
                     window.showModal({ title: 'Base smaller than assigned limits', html: html2, saveText: 'Save anyway', onSave: ()=>{ res(true); }, onCancel: ()=>{ const el = document.getElementById('category-list'); if(el) el.scrollIntoView({ behavior: 'smooth' }); res(false); } });
                 });
                 if(!confirmed) return false;
@@ -170,7 +170,7 @@ function renderDashboard(state){
                 }catch(e){ monthLabel = state.meta.month; }
             }
         document.getElementById('month-label').textContent = monthLabel;
-        document.getElementById('budget-base').textContent = `Base Budget: $${Number(state.meta.baseBudget || 0).toFixed(2)}`;
+        document.getElementById('budget-base').textContent = `Base Budget: $${Number(state.meta.baseBudget || 0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}`;
 
     // summary cards
         const totalIncome = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
@@ -185,19 +185,19 @@ function renderDashboard(state){
         <div class="col">
             <div class="card text-center p-3">
                 <div class="small text-muted">Income</div>
-                <div class="h5 fw-semibold text-success">$${totalIncome.toFixed(2)}</div>
+                <div class="h5 fw-semibold text-success">$${totalIncome.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
             </div>
         </div>
         <div class="col">
             <div class="card text-center p-3">
                 <div class="small text-muted">Expenses</div>
-                <div class="h5 fw-semibold text-danger">$${totalExpense.toFixed(2)}</div>
+                <div class="h5 fw-semibold text-danger">$${totalExpense.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
             </div>
         </div>
         <div class="col">
             <div class="card text-center p-3">
                 <div class="small text-muted">Remaining</div>
-                <div class="h5 fw-semibold">$${saved.toFixed(2)}</div>
+                <div class="h5 fw-semibold">$${saved.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
             </div>
         </div>
     `;
@@ -217,7 +217,7 @@ function renderDashboard(state){
                 const banner = document.createElement('div');
                 banner.id = 'unallocated-banner';
                 banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
-                banner.innerHTML = `<div class="small">You have $${remaining.toFixed(2)} of your base budget unallocated.</div><div><button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button><button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
+                banner.innerHTML = `<div class="small">You have $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} of your base budget unallocated.</div><div><button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button><button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
                 // insert banner just after the first section
                 const firstSection = container.querySelector('section');
                 if(firstSection && firstSection.parentNode){ firstSection.parentNode.insertBefore(banner, firstSection.nextSibling); }
@@ -248,117 +248,89 @@ function renderDashboard(state){
         const incomeCats = state.categories.filter(c => c.type === 'income');
         const expenseCats = state.categories.filter(c => c.type !== 'income');
 
-        // show income categories
-        // show income categories separately with progress bars (income categories have no limits)
+        // show income categories as a breakdown (pie chart + list)
         if(incomeCats.length){
             const header = document.createElement('h3'); header.className = 'small fw-semibold'; header.textContent = 'Income';
             incomeListContainer.appendChild(header);
 
-            // compute fallback denominator if no limits present
-            const maxEarned = Math.max(...incomeCats.map(c => {
-                return state.transactions.filter(t=>t.categoryId===c.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-            }), 1);
+            // Render income as a compact micro list (no bubbles)
 
+            // show a compact list with amounts and actions below the chart
+            const listDiv = document.createElement('div');
+            listDiv.className = 'mt-3 w-100';
             incomeCats.forEach(cat => {
                 const earned = state.transactions.filter(t=>t.categoryId===cat.id && t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-                // Income categories have no stored limits. Use relative earned values for a progress visualization.
-                const pct = maxEarned > 0 ? Math.min(100, Math.round((earned / maxEarned) * 100)) : 0;
-
-                const li = document.createElement('div');
-                li.className = 'py-2 border-bottom';
-                li.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-medium">${cat.name}</div>
-                            <div class="small text-muted">Earned: $${earned.toFixed(2)}</div>
-                        </div>
-                        <div class="small text-success fw-semibold">Income</div>
-                    </div>
-                    <div class="w-100 bg-light rounded h-3 mt-2 overflow-hidden">
-                        <div class="h-3 bg-success" style="width:${pct}%"></div>
-                    </div>
-                `;
-                // add edit/delete actions for income categories as well
-                const actions = document.createElement('div');
-                actions.className = 'd-flex align-items-center gap-2 mt-2';
-                actions.innerHTML = `<button data-action="edit" data-id="${cat.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button><button data-action="delete" data-id="${cat.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>`;
-                li.appendChild(actions);
-                incomeListContainer.appendChild(li);
+                const row = document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-center py-2 border-bottom';
+                row.innerHTML = `<div><div class="fw-medium">${cat.name}</div><div class="small text-muted">Earned: $${earned.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div></div><div class="d-flex gap-2"><button data-action="edit" data-id="${cat.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button><button data-action="delete" data-id="${cat.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button></div>`;
+                listDiv.appendChild(row);
             });
-                expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
-                // If there are expense categories, add a clear header for them below the income list
-                if(expenseCats.length){
-                    const expenseHeader = document.createElement('h3');
-                    expenseHeader.className = 'small fw-semibold mt-4';
-                    expenseHeader.textContent = 'Expenses';
-                    expenseList.parentElement.insertBefore(expenseHeader, expenseList);
-                }
-                // attach edit/delete handlers for income categories (same logic as expenses)
-                incomeListContainer.querySelectorAll('button[data-action]').forEach(btn=>{
-                    btn.addEventListener('click', async ()=>{
-                        const id = btn.getAttribute('data-id');
-                        const action = btn.getAttribute('data-action');
-                        if(action === 'delete'){
-                            if(confirm('Delete this category? This will not remove transactions.')){
-                                const { removeCategory } = await import('../storage.js');
-                                await removeCategory(id);
-                                const s = await getState(); renderDashboard(s);
-                            }
-                        } else if(action === 'edit'){
-                            const s = await getState();
-                            const cat = s.categories.find(c=>c.id===id);
-                            if(!cat) return;
-                            const html = `
-                                <div class="mb-3">
-                                    <input id="edit-cat-name" class="form-control mb-2" value="${cat.name}" />
-                                    <div class="d-flex gap-2">
-                                        <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit == null ? '' : cat.limit}" />
-                                        <select id="edit-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
-                                    </div>
-                                </div>
-                            `;
-                            window.showModal({ title: 'Edit category', html, onSave: async ()=>{
-                                const newName = document.getElementById('edit-cat-name').value || cat.name;
-                                const newType = document.getElementById('edit-cat-type').value || 'expense';
-                                let newLimit;
-                                if(newType === 'expense'){
-                                    const raw = document.getElementById('edit-cat-limit').value;
-                                    newLimit = raw === '' ? 0 : parseFloat(raw);
-                                    if(Number.isNaN(newLimit) || newLimit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
-                                    const st = await getState();
-                                    const baseBudget = Number(st.meta.baseBudget || 0);
-                                    if(baseBudget > 0 && newLimit > baseBudget){ alert('Category limit cannot exceed the Base Budget.'); return false; }
-                                } else {
-                                    newLimit = undefined;
-                                }
-                                await updateCategory(id, { name: newName, limit: newLimit, type: newType });
-                                const s2 = await getState(); renderDashboard(s2);
-                                // encourage redistribution if budget not fully assigned
-                                try{
-                                    const base = Number(s2.meta.baseBudget || 0);
-                                    if(base > 0){
-                                        const totalAssigned = s2.categories.filter(c=>c.type!=='income').reduce((sum,c)=>sum+Number(c.limit||0),0);
-                                        const remaining = Math.max(0, base - totalAssigned);
-                                        if(remaining > 0){
-                                            // Informational only: do not show modal that auto-prompts allocation here.
-                                            // Users will see the inline warning when adding transactions.
-                                        }
-                                    }
-                                }catch(e){ /* noop */ }
-                            }});
-                            // pre-select type and toggle limit input visibility
-                            setTimeout(()=>{
-                                const typeEl = document.getElementById('edit-cat-type');
-                                const limitEl = document.getElementById('edit-cat-limit');
-                                if(!typeEl || !limitEl) return;
-                                function toggle(){ limitEl.style.display = (typeEl.value === 'income') ? 'none' : 'block'; }
-                                typeEl.addEventListener('change', toggle);
-                                typeEl.value = cat.type || 'expense';
-                                toggle();
-                            }, 10);
+            incomeListContainer.appendChild(listDiv);
+
+            expenseList.parentElement.insertBefore(incomeListContainer, expenseList);
+
+            // If there are expense categories, add a clear header for them below the income list
+            if(expenseCats.length){
+                const expenseHeader = document.createElement('h3');
+                expenseHeader.className = 'small fw-semibold mt-4';
+                expenseHeader.textContent = 'Expenses';
+                expenseList.parentElement.insertBefore(expenseHeader, expenseList);
+            }
+
+            // attach edit/delete handlers for income categories (same logic as expenses)
+            incomeListContainer.querySelectorAll('button[data-action]').forEach(btn=>{
+                btn.addEventListener('click', async ()=>{
+                    const id = btn.getAttribute('data-id');
+                    const action = btn.getAttribute('data-action');
+                    if(action === 'delete'){
+                        if(confirm('Delete this category? This will not remove transactions.')){
+                            const { removeCategory } = await import('../storage.js');
+                            await removeCategory(id);
+                            const s = await getState(); renderDashboard(s);
                         }
-                    });
+                    } else if(action === 'edit'){
+                        const s = await getState();
+                        const cat = s.categories.find(c=>c.id===id);
+                        if(!cat) return;
+                        const html = `
+                            <div class="mb-3">
+                                <input id="edit-cat-name" class="form-control mb-2" value="${cat.name}" />
+                                <div class="d-flex gap-2">
+                                    <input id="edit-cat-limit" class="form-control flex-grow-1" value="${cat.limit == null ? '' : cat.limit}" />
+                                    <select id="edit-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
+                                </div>
+                            </div>
+                        `;
+                        window.showModal({ title: 'Edit category', html, onSave: async ()=>{
+                            const newName = document.getElementById('edit-cat-name').value || cat.name;
+                            const newType = document.getElementById('edit-cat-type').value || 'expense';
+                            let newLimit;
+                            if(newType === 'expense'){
+                                const raw = document.getElementById('edit-cat-limit').value;
+                                newLimit = raw === '' ? 0 : parseFloat(raw);
+                                if(Number.isNaN(newLimit) || newLimit < 0){ alert('Limit must be a number ≥ 0.'); return false; }
+                                const st = await getState();
+                                const baseBudget = Number(st.meta.baseBudget || 0);
+                                if(baseBudget > 0 && newLimit > baseBudget){ alert('Category limit cannot exceed the Base Budget.'); return false; }
+                            } else {
+                                newLimit = undefined;
+                            }
+                            await updateCategory(id, { name: newName, limit: newLimit, type: newType });
+                            const s2 = await getState(); renderDashboard(s2);
+                        }});
+                        // pre-select type and toggle limit input visibility
+                        setTimeout(()=>{
+                            const typeEl = document.getElementById('edit-cat-type');
+                            const limitEl = document.getElementById('edit-cat-limit');
+                            if(!typeEl || !limitEl) return;
+                            function toggle(){ limitEl.style.display = (typeEl.value === 'income') ? 'none' : 'block'; }
+                            typeEl.addEventListener('change', toggle);
+                            typeEl.value = cat.type || 'expense';
+                            toggle();
+                        }, 10);
+                    }
                 });
+            });
         }
 
     // show expense categories with bars and remaining balance
@@ -373,10 +345,10 @@ function renderDashboard(state){
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <div class="fw-medium">${cat.name}</div>
-                        <div class="small text-muted">Spent: $${spent.toFixed(2)} | Remaining: $${remaining.toFixed(2)}</div>
+                        <div class="small text-muted">Spent: $${spent.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} | Remaining: $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
                 </div>
                 <div class="small">
-                        <div class="fw-semibold">$${limit.toFixed(2)} limit</div>
+                        <div class="fw-semibold">$${limit.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} limit</div>
                 </div>
             </div>
             <div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
@@ -450,12 +422,12 @@ async function showRedistributeModal(remaining, expenseCats){
     if(!expenseCats || expenseCats.length === 0) return;
     const rows = expenseCats.map(c => `
         <div class="d-flex gap-2 align-items-center mb-2">
-            <div class="flex-grow-1">${c.name} <div class="small text-muted">current: $${Number(c.limit||0).toFixed(2)}</div></div>
+            <div class="flex-grow-1">${c.name} <div class="small text-muted">current: $${Number(c.limit||0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
             <div style="width:10rem"><input type="number" min="0" step="0.01" class="form-control alloc-input" data-cat-id="${c.id}" value="0" /></div>
         </div>
     `).join('');
 
-    const html = `<div class="mb-2"><p class="small">Distribute the <strong>$${remaining.toFixed(2)}</strong> remaining across your expense categories. Values must sum to the remaining amount.</p>${rows}<div class="d-flex gap-2 mt-2"><button id="even-dist" class="btn btn-sm btn-outline-secondary">Evenly distribute</button><div class="flex-grow-1"></div><div class="small text-muted">Remaining must be fully allocated to save.</div></div></div>`;
+    const html = `<div class="mb-2"><p class="small">Distribute the <strong>$${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</strong> remaining across your expense categories. Values must sum to the remaining amount.</p>${rows}<div class="d-flex gap-2 mt-2"><button id="even-dist" class="btn btn-sm btn-outline-secondary">Evenly distribute</button><div class="flex-grow-1"></div><div class="small text-muted">Remaining must be fully allocated to save.</div></div></div>`;
 
     await new Promise(res=>{
         window.showModal({ title: 'Redistribute unallocated budget', html, saveText: 'Save', onSave: async ()=>{
@@ -467,7 +439,7 @@ async function showRedistributeModal(remaining, expenseCats){
                 return { id: inp.getAttribute('data-cat-id'), val };
             });
             // allow small floating rounding tolerance
-            if(Math.abs(sum - remaining) > 0.01){ alert(`Allocated sum $${sum.toFixed(2)} does not equal remaining $${remaining.toFixed(2)}.`); return false; }
+            if(Math.abs(sum - remaining) > 0.01){ alert(`Allocated sum $${sum.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} does not equal remaining $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}.`); return false; }
             // apply updates: add assigned amounts to existing limits
             for(const a of assigns){
                 const cat = expenseCats.find(c=>c.id === a.id);

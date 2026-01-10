@@ -59,7 +59,7 @@ window.initSettings = async function(){
             // If there is remaining unallocated budget, inform the user (do not auto-apply)
             const remaining = Math.max(0, base - totalAssigned);
             if(remaining > 0 && expenseCats.length > 0){
-                const html2 = `<div class="mb-2"><p class="small">You have $${remaining.toFixed(2)} unallocated from your base budget. You can manually allocate this later from Settings or the Dashboard.</p></div>`;
+                const html2 = `<div class="mb-2"><p class="small">You have $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} unallocated from your base budget. You can manually allocate this later from Settings or the Dashboard.</p></div>`;
                 // show informational modal only; do not automatically add the remaining amount to any category
                 await new Promise(res => { window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'OK', onSave: ()=>{ res(); }, onCancel: ()=> res(); }); });
             }

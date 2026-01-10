@@ -54,10 +54,10 @@ async function populateCategories(){
     sel.addEventListener('change', async ()=>{
         if(sel.value === '__add_new__'){
                         // open modal to create category with type and optional limit
-                        const html = `
-                            <div class="mb-3">
-                                <input id="new-cat-name" class="form-control mb-2" placeholder="Category name" />
-                                <div class="d-flex gap-2">
+                                            const html = `
+                                                <div class="mb-2">
+                                                    <p class="small">Total expenses would exceed Budget Base by $${excess.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}.</p>
+                                                    <p class="small text-muted">Current Budget Base: $${baseBudget.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} | Current Total Expense: $${totalExpense.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</p>
                                     <input id="new-cat-limit" class="form-control flex-grow-1" placeholder="Limit (for expense)" />
                                     <select id="new-cat-type" class="form-select" style="width:10rem"><option value="expense">Expense</option><option value="income">Income</option></select>
                                 </div>
@@ -139,7 +139,7 @@ function attachForm(){
                         const banner = document.createElement('div');
                         banner.id = 'unallocated-banner-transactions';
                         banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
-                        banner.innerHTML = `<div class="small">You have $${remaining.toFixed(2)} of your base budget unallocated.</div><div><button id="dismiss-unalloc-tx" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
+                        banner.innerHTML = `<div class="small">You have $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} of your base budget unallocated.</div><div><button id="dismiss-unalloc-tx" class="btn btn-sm btn-secondary">Dismiss</button></div>`;
                         if(container){
                             const firstSection = container.querySelector('section');
                             if(firstSection && firstSection.parentNode) firstSection.parentNode.insertBefore(banner, firstSection);
@@ -151,7 +151,7 @@ function attachForm(){
                     } else {
                         // update text
                         const textDiv = existingBanner.querySelector('div');
-                        if(textDiv) textDiv.textContent = `You have $${remaining.toFixed(2)} of your base budget unallocated.`;
+                        if(textDiv) textDiv.textContent = `You have $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} of your base budget unallocated.`;
                     }
                 } else {
                     if(existingBanner) existingBanner.remove();
@@ -268,7 +268,7 @@ function attachForm(){
                         });
                     const optionsHtml = `
                         <div class="mb-2">
-                            <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toFixed(2)}. This transaction would make spent $${wouldBe.toFixed(2)}.</p>
+                            <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}. This transaction would make spent $${wouldBe.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}.</p>
                             <div>
                                 <label class="form-label small">Choose action</label>
                                 <select id="transfer-action" class="form-select">
@@ -313,7 +313,7 @@ function attachForm(){
                             const val = actionEl.value;
                             if(val === 'transfer'){
                                 // build options showing available funds; disable options with 0 available
-                                const opts = otherCats.map(c => `<option value="${c.id}" ${c.available<=0? 'disabled':''}>${c.name} (available $${c.available.toFixed(2)})</option>`).join('');
+                                const opts = otherCats.map(c => `<option value="${c.id}" ${c.available<=0? 'disabled':''}>${c.name} (available $${c.available.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})})</option>`).join('');
                                 const firstAvailable = otherCats.find(c => c.available > 0);
                                 const defaultAmt = firstAvailable ? Math.min(firstAvailable.available, amount) : amount;
                                 extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${opts}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${defaultAmt}" />`;
@@ -344,8 +344,8 @@ function attachForm(){
                     const excess = (totalExpense + amount) - baseBudget;
                     const html = `
                         <div class="mb-2">
-                            <p class="small">Total expenses would exceed Budget Base by $${excess.toFixed(2)}.</p>
-                            <p class="small text-muted">Current Budget Base: $${baseBudget.toFixed(2)} | Current Total Expense: $${totalExpense.toFixed(2)}</p>
+                            <p class="small">Total expenses would exceed Budget Base by $${excess.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}.</p>
+                            <p class="small text-muted">Current Budget Base: $${baseBudget.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} | Current Total Expense: $${totalExpense.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</p>
                             <div>
                                 <label class="form-label small">Do you want to increase Budget Base or cancel?</label>
                                 <select id="base-action" class="form-select">
@@ -373,7 +373,7 @@ function attachForm(){
                         const extra = document.getElementById('base-extra');
                         function renderExtra(){
                             if(actionEl.value === 'increase'){
-                                extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="base-extra-input" type="number" class="form-control" value="${excess.toFixed(2)}" />`;
+                                extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="base-extra-input" type="number" class="form-control" value="${excess.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}" />`;
                             } else { extra.innerHTML = '' }
                         }
                         actionEl.addEventListener('change', renderExtra);
@@ -410,7 +410,7 @@ async function renderTransactions(){
         const cat = state.categories.find(c=>c.id===t.categoryId);
         // format date as dd-mm-yyyy using global helper
         const prettyDate = window.formatDate(t.date);
-        li.innerHTML = `<div><div class="small">${prettyDate} • ${t.description || ''}</div><div class="small text-muted">${cat?cat.name:'Uncategorized'}</div></div><div class="d-flex align-items-center gap-2"><div class="fw-semibold ${t.type==='income'?'text-success':'text-danger'}">${t.type==='income'?'+':'-'}$${Number(t.amount).toFixed(2)}</div><button data-id="${t.id}" class="btn btn-link btn-sm p-0 text-primary edit-btn">Edit</button><button data-id="${t.id}" class="btn btn-link btn-sm p-0 text-danger delete-btn">Delete</button></div>`;
+        li.innerHTML = `<div><div class="small">${prettyDate} • ${t.description || ''}</div><div class="small text-muted">${cat?cat.name:'Uncategorized'}</div></div><div class="d-flex align-items-center gap-2"><div class="fw-semibold ${t.type==='income'?'text-success':'text-danger'}">${t.type==='income'?'+':'-'}$${Number(t.amount).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</div><button data-id="${t.id}" class="btn btn-link btn-sm p-0 text-primary edit-btn">Edit</button><button data-id="${t.id}" class="btn btn-link btn-sm p-0 text-danger delete-btn">Delete</button></div>`;
         list.appendChild(li);
     });
 
@@ -477,8 +477,8 @@ async function renderTransactions(){
                                                 });
 
                                             const optionsHtml = `
-                                                <div class="mb-2">
-                                                    <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toFixed(2)}. This change would make spent $${wouldBe.toFixed(2)}.</p>
+                                        <div class="mb-2">
+                                            <p class="small">Category <strong>${cat.name}</strong> limit: $${Number(cat.limit).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}. This change would make spent $${wouldBe.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}.</p>
                                                     <div>
                                                         <label class="form-label small">Choose action</label>
                                                         <select id="transfer-action" class="form-select">
@@ -519,7 +519,7 @@ async function renderTransactions(){
                                                 function renderExtra(){
                                                     const val = actionEl.value;
                                                     if(val === 'transfer'){
-                                                        const opts = otherCats.map(c => `<option value="${c.id}" ${c.available<=0? 'disabled':''}>${c.name} (available $${c.available.toFixed(2)})</option>`).join('');
+                                                        const opts = otherCats.map(c => `<option value="${c.id}" ${c.available<=0? 'disabled':''}>${c.name} (available $${c.available.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})})</option>`).join('');
                                                         const firstAvailable = otherCats.find(c => c.available > 0);
                                                         const defaultAmt = firstAvailable ? Math.min(firstAvailable.available, newAmt) : newAmt;
                                                         extra.innerHTML = `<label class="form-label small">Source category</label><select id="transfer-source" class="form-select">${opts}</select><label class="form-label small mt-2">Amount to transfer</label><input id="transfer-extra-input" type="number" class="form-control" value="${defaultAmt}" />`;
@@ -529,7 +529,7 @@ async function renderTransactions(){
                                                             if(firstAvailable){ sel.value = firstAvailable.id; }
                                                         }, 10);
                                                     } else if(val === 'increase'){
-                                                        extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${(wouldBe - cat.limit).toFixed(2)}" />`;
+                                                        extra.innerHTML = `<label class="form-label small">Increase base by</label><input id="transfer-extra-input" type="number" class="form-control" value="${(wouldBe - cat.limit).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}" />`;
                                                     } else { extra.innerHTML = '' }
                                                 }
                                                 actionEl.addEventListener('change', renderExtra);
@@ -546,8 +546,8 @@ async function renderTransactions(){
                                             const excess = (totalExcluding + newAmt) - baseBudget;
                                             const html = `
                                                 <div class="mb-2">
-                                                    <p class="small">Total expenses would exceed Budget Base by $${excess.toFixed(2)}.</p>
-                                                    <p class="small text-muted">Current Budget Base: $${baseBudget.toFixed(2)} | Current Total Expense: $${totalExcluding.toFixed(2)}</p>
+                                                    <p class="small">Total expenses would exceed Budget Base by $${excess.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}.</p>
+                                                    <p class="small text-muted">Current Budget Base: $${baseBudget.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} | Current Total Expense: $${totalExcluding.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}</p>
                                                     <div>
                                                         <label class="form-label small">Do you want to increase Budget Base or cancel?</label>
                                                         <select id="base-action" class="form-select">
