@@ -411,7 +411,13 @@ async function renderTransactions(){
     if(state.meta && state.meta.month){
         txs = txs.filter(t => typeof t.date === 'string' && t.date.startsWith(state.meta.month + '-'));
     }
-    txs.reverse().forEach(t=>{
+    // Sort by date, most recent first
+    txs.sort((a, b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        return dateB.localeCompare(dateA);
+    });
+    txs.forEach(t=>{
         const li = document.createElement('li');
         li.className = 'd-flex align-items-center justify-content-between p-2 border-bottom';
         const cat = state.categories.find(c=>c.id===t.categoryId);
