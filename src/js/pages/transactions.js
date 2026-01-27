@@ -36,9 +36,13 @@ async function updateBaseMonthLabel(){
 async function populateCategories(){
     const state = await getState();
     const sel = document.getElementById('transaction-category');
+    const typeEl = document.getElementById('transaction-type');
     if(!sel) return;
     sel.innerHTML = '';
-    state.categories.forEach(c=>{
+    // Filter categories by transaction type
+    const transactionType = typeEl ? typeEl.value : 'expense';
+    const filteredCategories = state.categories.filter(c => c.type === transactionType);
+    filteredCategories.forEach(c=>{
         const opt = document.createElement('option');
         opt.value = c.id; opt.textContent = c.name;
         sel.appendChild(opt);
@@ -162,7 +166,10 @@ function attachForm(){
         // wire input/change events so the banner appears before submit
         amountEl?.addEventListener('input', updateUnallocatedWarning);
         categoryEl?.addEventListener('change', updateUnallocatedWarning);
-        document.getElementById('transaction-type')?.addEventListener('change', updateUnallocatedWarning);
+        document.getElementById('transaction-type')?.addEventListener('change', async ()=>{
+            await populateCategories();
+            await updateUnallocatedWarning();
+        });
         // initial check
         updateUnallocatedWarning();
 
@@ -434,10 +441,31 @@ async function renderTransactions(){
                             // Edit transaction via modal
                             const dayVal = (t.date && t.date.split('-')[2]) ? parseInt(t.date.split('-')[2],10) : '';
                             const baseMonthLabel = (state.meta && state.meta.month) ? (()=>{ try{ const parts = String(state.meta.month).split('-'); if(parts.length === 2){ const yyyy = Number(parts[0]); const mm = Number(parts[1]); const d = new Date(yyyy, Math.max(0, mm - 1), 1); return d.toLocaleString(undefined,{ month: 'short', year: 'numeric' }); } return state.meta.month; }catch(e){ return state.meta.month; } })() : '';
+                            // Build category options for the current transaction type
+                            const categoriesOfType = state.categories.filter(c => c.type === t.type);
+                            const categoryOptions = categoriesOfType.map(c => `<option value="${c.id}" ${c.id === t.categoryId ? 'selected' : ''}>${c.name}</option>`).join('');
                             const html = `
                                 <div class="mb-3">
-                                    <input id="edit-t-amount" class="form-control mb-2" value="${t.amount}" />
-                                    <input id="edit-t-desc" class="form-control mb-2" value="${t.description||''}" />
+                                    <label class="form-label small">Amount</label>
+                                    <input id="edit-t-amount" class="form-control mb-3" value="${t.amount}" />
+                                    <label class="form-label small">Description</label>
+                                    <input id="edit-t-desc" class="form-control mb-3" value="${t.description||''}" />
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-4">
+                                            <label class="form-label small">Type</label>
+                                            <select id="edit-t-type" class="form-select">
+                                                <option value="expense" ${t.type === 'expense' ? 'selected' : ''}>Expense</option>
+                                                <option value="income" ${t.type === 'income' ? 'selected' : ''}>Income</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-8">
+                                            <label class="form-label small">Category</label>
+                                            <select id="edit-t-category" class="form-select">
+                                                ${categoryOptions}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <label class="form-label small">Day</label>
                                     <div class="d-flex gap-2 align-items-center">
                                         <input id="edit-t-day" type="number" min="1" max="31" class="form-control" style="max-width:8rem" value="${dayVal}" />
                                         <div class="small text-muted">Base: <span id="edit-base-month">${baseMonthLabel}</span></div>
@@ -449,6 +477,8 @@ async function renderTransactions(){
                                     const newAmtRaw = document.getElementById('edit-t-amount').value;
                                     const newAmt = newAmtRaw === '' ? NaN : parseFloat(newAmtRaw);
                                     const newDesc = document.getElementById('edit-t-desc').value || t.description;
+                                    const newType = document.getElementById('edit-t-type').value || t.type;
+                                    const newCategoryId = document.getElementById('edit-t-category').value || t.categoryId;
                                     const newDayRaw = document.getElementById('edit-t-day').value;
                                     const newDay = parseInt(newDayRaw, 10);
                                     if(Number.isNaN(newDay) || newDay < 1 || newDay > 31){ alert('Please enter a valid day (1-31).'); return false; }
@@ -459,10 +489,10 @@ async function renderTransactions(){
                                     if(!newDate){ alert('Please choose a date.'); return false; }
 
                                     // If this is an expense, validate against category limits and Budget Base
-                                    if(t.type === 'expense'){
+                                    if(newType === 'expense'){
                                         const st = await getState();
-                                        const cat = st.categories.find(c=>c.id===t.categoryId);
-                                        const spentExcluding = st.transactions.filter(x=>x.categoryId===t.categoryId && x.type==='expense' && x.id !== id).reduce((s,x)=>s+Number(x.amount),0);
+                                        const cat = st.categories.find(c=>c.id===newCategoryId);
+                                        const spentExcluding = st.transactions.filter(x=>x.categoryId===newCategoryId && x.type==='expense' && x.id !== id).reduce((s,x)=>s+Number(x.amount),0);
                                         const wouldBe = spentExcluding + newAmt;
 
                                         // If this would exceed category limit, prompt user to transfer/increase/cancel
@@ -587,10 +617,39 @@ async function renderTransactions(){
                                     }
 
                                     // All validations passed — save the edited transaction
-                                    await editTx(id, { amount: newAmt, description: newDesc, date: newDate });
+                                    await editTx(id, { amount: newAmt, description: newDesc, date: newDate, type: newType, categoryId: newCategoryId });
                                     await renderTransactions();
                                     resolve();
                                 }, onCancel: ()=> resolve() });
+
+                                // Add event listener for type change to update category options
+                                setTimeout(()=>{
+                                    const typeSelect = document.getElementById('edit-t-type');
+                                    const categorySelect = document.getElementById('edit-t-category');
+                                    if(!typeSelect || !categorySelect) return;
+                                    
+                                    async function updateCategoryOptions(){
+                                        const st = await getState();
+                                        const selectedType = typeSelect.value;
+                                        const filteredCats = st.categories.filter(c => c.type === selectedType);
+                                        const currentSelection = categorySelect.value;
+                                        categorySelect.innerHTML = '';
+                                        filteredCats.forEach(c => {
+                                            const opt = document.createElement('option');
+                                            opt.value = c.id;
+                                            opt.textContent = c.name;
+                                            categorySelect.appendChild(opt);
+                                        });
+                                        // Try to keep the selection if it exists in the new type, otherwise select first
+                                        if(filteredCats.find(c => c.id === currentSelection)){
+                                            categorySelect.value = currentSelection;
+                                        } else if(filteredCats.length > 0){
+                                            categorySelect.value = filteredCats[0].id;
+                                        }
+                                    }
+                                    
+                                    typeSelect.addEventListener('change', updateCategoryOptions);
+                                }, 50);
                             });
             });
         });
