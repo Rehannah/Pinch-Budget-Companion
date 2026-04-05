@@ -9,6 +9,7 @@ export default defineConfig({
 		emptyOutDir: true,
 		rollupOptions: {
 			input: {
+				main: resolve(__dirname, "src/index.html"), // ← add back
 				dashboard: resolve(__dirname, "src/dashboard.html"),
 				login: resolve(__dirname, "src/login.html"),
 				settings: resolve(__dirname, "src/settings.html"),
