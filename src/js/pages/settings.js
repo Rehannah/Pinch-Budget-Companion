@@ -1,12 +1,19 @@
 // This file contains the logic for the settings page.
 
-import { getState, resetForNewMonth, clearAllData, exportData, importData } from '../cloud-storage.js';
+import {
+	getState,
+	resetForNewMonth,
+	clearAllData,
+	exportData,
+	importData,
+} from "../cloud-storage.js";
 
-window.initSettings = async function(){
-    const btn = document.getElementById('restart-app');
-    if(btn) btn.addEventListener('click', async ()=>{
-        // Show a modal to choose restart options (keep categories or clear everything)
-        const html = `
+window.initSettings = async function () {
+	const btn = document.getElementById("restart-app");
+	if (btn)
+		btn.addEventListener("click", async () => {
+			// Show a modal to choose restart options (keep categories or clear everything)
+			const html = `
             <div class="space-y-3">
                 <label class="block text-sm">New month</label>
                 <input id="restart-month" type="month" class="w-full p-2 border rounded" />
@@ -18,95 +25,144 @@ window.initSettings = async function(){
             </div>
         `;
 
-        window.showModal({ title: 'Restart for new month', html, saveText: 'Restart', onSave: async ()=>{
-            const month = document.getElementById('restart-month').value || null;
-            const base = parseFloat(document.getElementById('restart-base').value) || 0;
-            const keepCats = !!document.getElementById('restart-keep-cats').checked;
+			window.showModal({
+				title: "Restart for new month",
+				html,
+				saveText: "Restart",
+				onSave: async () => {
+					const month = document.getElementById("restart-month").value || null;
+					const base =
+						parseFloat(document.getElementById("restart-base").value) || 0;
+					const keepCats =
+						!!document.getElementById("restart-keep-cats").checked;
 
-            if(!month){
-                alert('Please choose a month to continue.');
-                return false; // keep modal open
-            }
-            if(Number.isNaN(base) || base < 0){
-                alert('Base budget must be a number ≥ 0.');
-                return false;
-            }
+					if (!month) {
+						alert("Please choose a month to continue.");
+						return false; // keep modal open
+					}
+					if (Number.isNaN(base) || base < 0) {
+						alert("Base budget must be a number ≥ 0.");
+						return false;
+					}
 
-            // If user requested full clear, delete all persisted data and caches.
-            const clearAll = !!document.getElementById('restart-clear-all').checked;
-            if(clearAll){
-                // Confirm destructive action
-                if(!confirm('This will delete ALL app data (including month, base, categories, and transactions). Are you sure?')) return false;
-                // Clear Firestore storage document
-                await clearAllData();
-                // Clear SW caches (best-effort)
-                if(window.clearServiceWorkersAndCaches) await window.clearServiceWorkersAndCaches();
-                // Notify user
-                if(window.showToast) window.showToast('All app data cleared. Starting fresh.');
-                // Redirect to dashboard which will trigger onboarding (no month set)
-                setTimeout(()=> window.location.href = 'dashboard.html', 500);
-                return;
-            }
+					// If user requested full clear, delete all persisted data and caches.
+					const clearAll =
+						!!document.getElementById("restart-clear-all").checked;
+					if (clearAll) {
+						// Confirm destructive action
+						if (
+							!confirm(
+								"This will delete ALL app data (including month, base, categories, and transactions). Are you sure?",
+							)
+						)
+							return false;
+						// Clear Firestore storage document
+						await clearAllData();
+						// Clear SW caches (best-effort)
+						if (window.clearServiceWorkersAndCaches)
+							await window.clearServiceWorkersAndCaches();
+						// Notify user
+						if (window.showToast)
+							window.showToast("All app data cleared. Starting fresh.");
+						// Redirect to dashboard which will trigger onboarding (no month set)
+						setTimeout(() => (window.location.href = "dashboard.html"), 500);
+						return;
+					}
 
-            // When keepCats is true, pass the current categories into resetForNewMonth so they persist
-            // When false, pass an empty array so categories are cleared.
-            const state = await getState();
-            let catsToPass = keepCats ? state.categories.map(c=>({ name: c.name, limit: c.limit, type: c.type })) : [];
-            // Validate category limits do not exceed baseBudget
-            const expenseCats = catsToPass.filter(c=>c.type !== 'income');
-            const totalAssigned = expenseCats.reduce((s,c)=>s + Number(c.limit || 0), 0);
-            if(totalAssigned > base){ alert('One or more category limits exceed the Base Budget. Please adjust limits before restarting.'); return false; }
-            // If there is remaining unallocated budget, inform the user (do not auto-apply)
-            const remaining = Math.max(0, base - totalAssigned);
-            if(remaining > 0 && expenseCats.length > 0){
-                const html2 = `<div class="mb-2"><p class="small">You have $${remaining.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} unallocated from your base budget. You can manually allocate this later from Settings or the Dashboard.</p></div>`;
-                // show informational modal only; do not automatically add the remaining amount to any category
-                await new Promise(res => { window.showModal({ title: 'Unallocated budget', html: html2, saveText: 'OK', onSave: ()=>{ res(); }, onCancel: ()=> res(); }); });
-            }
+					// When keepCats is true, pass the current categories into resetForNewMonth so they persist
+					// When false, pass an empty array so categories are cleared.
+					const state = await getState();
+					let catsToPass = keepCats
+						? state.categories.map((c) => ({
+								name: c.name,
+								limit: c.limit,
+								type: c.type,
+							}))
+						: [];
+					// Validate category limits do not exceed baseBudget
+					const expenseCats = catsToPass.filter((c) => c.type !== "income");
+					const totalAssigned = expenseCats.reduce(
+						(s, c) => s + Number(c.limit || 0),
+						0,
+					);
+					if (totalAssigned > base) {
+						alert(
+							"One or more category limits exceed the Base Budget. Please adjust limits before restarting.",
+						);
+						return false;
+					}
+					// If there is remaining unallocated budget, inform the user (do not auto-apply)
+					const remaining = Math.max(0, base - totalAssigned);
+					if (remaining > 0 && expenseCats.length > 0) {
+						const html2 = `<div class="mb-2"><p class="small">You have $${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unallocated from your base budget. You can manually allocate this later from Settings or the Dashboard.</p></div>`;
+						// show informational modal only; do not automatically add the remaining amount to any category
+						await new Promise((res) => {
+							window.showModal({
+								title: "Unallocated budget",
+								html: html2,
+								saveText: "OK",
+								onSave: () => {
+									res();
+								},
+								onCancel: () => {
+									res();
+								},
+							});
+						});
+					}
 
-            await resetForNewMonth({ month, baseBudget: base, categories: catsToPass });
-            if(window.showToast) window.showToast('Restart complete — new month set.');
-            // Redirect to dashboard
-            setTimeout(()=> window.location.href = 'dashboard.html', 400);
-        }});
-    });
+					await resetForNewMonth({
+						month,
+						baseBudget: base,
+						categories: catsToPass,
+					});
+					if (window.showToast)
+						window.showToast("Restart complete — new month set.");
+					// Redirect to dashboard
+					setTimeout(() => (window.location.href = "dashboard.html"), 400);
+				},
+			});
+		});
 
-    // Export data
-    const exportBtn = document.getElementById('export-data');
-    if(exportBtn) exportBtn.addEventListener('click', async ()=>{
-        const data = await exportData();
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'pinch-budget-data.json';
-        a.click();
-        URL.revokeObjectURL(url);
-        if(window.showToast) window.showToast('Data exported successfully.');
-    });
+	// Export data
+	const exportBtn = document.getElementById("export-data");
+	if (exportBtn)
+		exportBtn.addEventListener("click", async () => {
+			const data = await exportData();
+			const blob = new Blob([data], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = "pinch-budget-data.json";
+			a.click();
+			URL.revokeObjectURL(url);
+			if (window.showToast) window.showToast("Data exported successfully.");
+		});
 
-    // Import data
-    const importBtn = document.getElementById('import-data');
-    if(importBtn) importBtn.addEventListener('click', ()=>{
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.addEventListener('change', async (e)=>{
-            const file = e.target.files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e)=>{
-                const json = e.target.result;
-                const success = await importData(json);
-                if(success){
-                    if(window.showToast) window.showToast('Data imported successfully. Refreshing...');
-                    setTimeout(()=> window.location.reload(), 1000);
-                } else {
-                    alert('Failed to import data. Please check the file format.');
-                }
-            };
-            reader.readAsText(file);
-        });
-        input.click();
-    });
-}
+	// Import data
+	const importBtn = document.getElementById("import-data");
+	if (importBtn)
+		importBtn.addEventListener("click", () => {
+			const input = document.createElement("input");
+			input.type = "file";
+			input.accept = ".json";
+			input.addEventListener("change", async (e) => {
+				const file = e.target.files[0];
+				if (!file) return;
+				const reader = new FileReader();
+				reader.onload = async (e) => {
+					const json = e.target.result;
+					const success = await importData(json);
+					if (success) {
+						if (window.showToast)
+							window.showToast("Data imported successfully. Refreshing...");
+						setTimeout(() => window.location.reload(), 1000);
+					} else {
+						alert("Failed to import data. Please check the file format.");
+					}
+				};
+				reader.readAsText(file);
+			});
+			input.click();
+		});
+};

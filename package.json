@@ -1,22 +1,19 @@
 {
-  "name": "pinch-budget-companion",
-  "version": "1.0.0",
-  "description": "A mobile-first application for budget tracking and management.",
-  "main": "src/app.js",
+  "name": "my-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "serve": "npx http-server src -p 8000 --cors",
-    "start": "npm run serve",
-    "quicktest": "node test/run-tests.mjs"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0",
+    "vite": "^8.0.1"
   },
   "dependencies": {
     "firebase": "^12.11.0"
-  },
-  "keywords": [
-    "mobile",
-    "budget",
-    "tracking",
-    "PWA"
-  ],
-  "author": "Your Name",
-  "license": "MIT"
+  }
 }
