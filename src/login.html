@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Pinch</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#9b7cff">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="bg-light">
+    <div class="min-vh-100 d-flex align-items-center justify-content-center p-3">
+        <div class="bg-white rounded shadow-sm p-4" style="max-width: 28rem; width: 100%;">
+            <div class="text-center mb-4">
+                <h1 class="h4 mb-2">Pinch Budget</h1>
+                <p class="small text-muted mb-0">Sign in or create an account to sync your budget across devices.</p>
+            </div>
+            <form id="auth-form">
+                <div class="mb-3">
+                    <label for="auth-email" class="form-label small">Email</label>
+                    <input id="auth-email" type="email" class="form-control" placeholder="you@example.com" required>
+                </div>
+                <div class="mb-3">
+                    <label for="auth-password" class="form-label small">Password</label>
+                    <input id="auth-password" type="password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <div id="auth-error" class="alert alert-danger d-none small"></div>
+                <button id="sign-in-btn" type="button" class="btn btn-primary w-100 mb-2">Sign In</button>
+                <button id="sign-up-btn" type="button" class="btn btn-outline-secondary w-100">Create Account</button>
+            </form>
+            <div class="text-center mt-3 small text-muted">Your data will be stored securely in Firestore.</div>
+        </div>
+    </div>
+    <script type="module" src="js/login.js"></script>
+</body>
+</html>

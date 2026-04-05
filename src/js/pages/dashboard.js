@@ -1,4 +1,4 @@
-import { getState, addCategory, updateCategory, updateCategoryLimit } from '../storage.js';
+import { getState, addCategory, updateCategory, saveState, removeCategory } from '../cloud-storage.js';
 
 // Dashboard page initializer — exposes global initDashboard for app.js to call.
 window.initDashboard = async function() {
@@ -48,7 +48,6 @@ async function showEditBaseModal(state){
             }
         }catch(e){ /* noop */ }
 
-        const { saveState } = await import('../storage.js');
         state.meta.baseBudget = newBase;
         await saveState(state);
         const s = await getState();
@@ -82,7 +81,6 @@ async function showEditMonthModal(state){
         const month = m[1];
         const year = m[2];
         const newMonth = `${year}-${month}`; // internal YYYY-MM
-        const { saveState } = await import('../storage.js');
         state.meta.month = newMonth;
         // update month/year for all existing transactions to keep them in sync
         if(Array.isArray(state.transactions)){
@@ -213,7 +211,6 @@ function renderDashboard(state){
             const totalAssigned = state.categories.filter(c=>c.type!=='income').reduce((s,c)=>s + Number(c.limit||0),0);
             const remaining = Math.max(0, base - totalAssigned);
             if(base > 0 && remaining > 0){
-                console.debug('[renderDashboard] adding unallocated banner, remaining=', remaining);
                 const banner = document.createElement('div');
                 banner.id = 'unallocated-banner';
                 banner.className = 'alert alert-warning d-flex justify-content-between align-items-center';
@@ -284,9 +281,8 @@ function renderDashboard(state){
                     const action = btn.getAttribute('data-action');
                     if(action === 'delete'){
                         if(confirm('Delete this category? This will not remove transactions.')){
-                            const { removeCategory } = await import('../storage.js');
-                            await removeCategory(id);
-                            const s = await getState(); renderDashboard(s);
+                                await removeCategory(id);
+                        const s = await getState(); renderDashboard(s);
                         }
                     } else if(action === 'edit'){
                         const s = await getState();
@@ -370,7 +366,6 @@ function renderDashboard(state){
                 const action = btn.getAttribute('data-action');
                 if(action === 'delete'){
                     if(confirm('Delete this category? This will not remove transactions.')){
-                        const { removeCategory } = await import('../storage.js');
                         await removeCategory(id);
                         const s = await getState(); renderDashboard(s);
                     }

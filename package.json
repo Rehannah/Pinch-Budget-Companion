@@ -9,9 +9,8 @@
     "quicktest": "node test/run-tests.mjs"
   },
   "dependencies": {
-    "localforage": "^1.10.0"
+    "firebase": "^12.11.0"
   },
-  "devDependencies": {},
   "keywords": [
     "mobile",
     "budget",

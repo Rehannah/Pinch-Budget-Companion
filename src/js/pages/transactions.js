@@ -1,7 +1,4 @@
-import { getState, addTransaction, addCategory, updateCategory, editTransaction as editTx, deleteTransaction as deleteTx, transferBetweenCategories } from '../storage.js';
-
-// Debug: confirm module load
-console.log('transactions.js loaded');
+import { getState, addTransaction, addCategory, updateCategory, editTransaction as editTx, deleteTransaction as deleteTx, transferBetweenCategories, saveState } from '../cloud-storage.js';
 
 window.initTransactions = async function(){
     await populateCategories();
@@ -295,7 +292,7 @@ function attachForm(){
                             if(action === 'cancel'){ cancelled = true; resolve(); return; }
                             if(action === 'increase'){
                                 const inc = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
-                                if(inc > 0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(st)); }
+                                if(inc > 0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await saveState(st); }
                             } else if(action === 'transfer'){
                                 const sourceId = document.getElementById('transfer-source')?.value;
                                 const transferAmt = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
@@ -371,7 +368,7 @@ function attachForm(){
                             if(action === 'cancel'){ cancelledBase = true; resolve(); return; }
                             if(action === 'increase'){
                                 const inc = parseFloat(document.getElementById('base-extra-input')?.value) || 0;
-                                if(inc>0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(st)); }
+                                if(inc>0){ const st = await getState(); st.meta.baseBudget = (Number(st.meta.baseBudget)||0) + inc; await saveState(st); }
                             }
                             resolve();
                         }, onCancel: ()=>{ cancelledBase = true; resolve(); } });
@@ -534,7 +531,7 @@ async function renderTransactions(){
                                                     if(action === 'cancel'){ cancelled = true; res(); return; }
                                                     if(action === 'increase'){
                                                         const inc = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
-                                                        if(inc > 0){ const sst = await getState(); sst.meta.baseBudget = (Number(sst.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(sst)); }
+                                                        if(inc > 0){ const sst = await getState(); sst.meta.baseBudget = (Number(sst.meta.baseBudget)||0) + inc; await saveState(sst); }
                                                     } else if(action === 'transfer'){
                                                         const sourceId = document.getElementById('transfer-source')?.value;
                                                         const transferAmt = parseFloat(document.getElementById('transfer-extra-input')?.value) || 0;
@@ -602,7 +599,7 @@ async function renderTransactions(){
                                                     if(action === 'cancel'){ cancelledBase = true; res(); return; }
                                                     if(action === 'increase'){
                                                         const inc = parseFloat(document.getElementById('base-extra-input')?.value) || 0;
-                                                        if(inc>0){ const sst = await getState(); sst.meta.baseBudget = (Number(sst.meta.baseBudget)||0) + inc; await import('../storage.js').then(m=>m.saveState(sst)); }
+                                                        if(inc>0){ const sst = await getState(); sst.meta.baseBudget = (Number(sst.meta.baseBudget)||0) + inc; await saveState(sst); }
                                                     }
                                                     res();
                                                 }, onCancel: ()=>{ cancelledBase = true; res(); } });

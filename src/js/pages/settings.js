@@ -1,6 +1,6 @@
 // This file contains the logic for the settings page.
 
-import { getState, resetForNewMonth, clearAllData } from '../storage.js';
+import { getState, resetForNewMonth, clearAllData, exportData, importData } from '../cloud-storage.js';
 
 window.initSettings = async function(){
     const btn = document.getElementById('restart-app');
@@ -37,7 +37,7 @@ window.initSettings = async function(){
             if(clearAll){
                 // Confirm destructive action
                 if(!confirm('This will delete ALL app data (including month, base, categories, and transactions). Are you sure?')) return false;
-                // Clear IndexedDB/localforage store
+                // Clear Firestore storage document
                 await clearAllData();
                 // Clear SW caches (best-effort)
                 if(window.clearServiceWorkersAndCaches) await window.clearServiceWorkersAndCaches();
@@ -69,5 +69,44 @@ window.initSettings = async function(){
             // Redirect to dashboard
             setTimeout(()=> window.location.href = 'dashboard.html', 400);
         }});
+    });
+
+    // Export data
+    const exportBtn = document.getElementById('export-data');
+    if(exportBtn) exportBtn.addEventListener('click', async ()=>{
+        const data = await exportData();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'pinch-budget-data.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        if(window.showToast) window.showToast('Data exported successfully.');
+    });
+
+    // Import data
+    const importBtn = document.getElementById('import-data');
+    if(importBtn) importBtn.addEventListener('click', ()=>{
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.addEventListener('change', async (e)=>{
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e)=>{
+                const json = e.target.result;
+                const success = await importData(json);
+                if(success){
+                    if(window.showToast) window.showToast('Data imported successfully. Refreshing...');
+                    setTimeout(()=> window.location.reload(), 1000);
+                } else {
+                    alert('Failed to import data. Please check the file format.');
+                }
+            };
+            reader.readAsText(file);
+        });
+        input.click();
     });
 }

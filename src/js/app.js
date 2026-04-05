@@ -1,6 +1,8 @@
-// App bootstrap (ES module). Mounts header and initializes storage and current page script.
+// App bootstrap (ES module). Mounts header and initializes auth, cloud storage, and current page script.
 import Header, { initHeader } from '../components/header.js';
-import { initStorage, getState, resetForNewMonth } from './storage.js';
+import { initAuthListener, logout } from './auth.js';
+import { initCloudStorage, getState, resetForNewMonth } from './cloud-storage.js';
+import { showLogoutConfirm } from './auth-ui.js';
 
 function mountHeader() {
     const el = document.getElementById('app-header');
@@ -10,15 +12,12 @@ function mountHeader() {
 }
 
 async function showOnboarding(isRestarting = false){
-    console.log('[showOnboarding] called with isRestarting:', isRestarting);
-    if(document.getElementById('onboard-modal')) {
-        console.log('[showOnboarding] modal already exists, returning');
+    if (document.getElementById('onboard-modal')) {
         return;
     }
     
     const state = await getState();
     const hasExistingCategories = isRestarting && state && state.categories && state.categories.length > 0;
-    console.log('[showOnboarding] hasExistingCategories:', hasExistingCategories);
     
     // Build modal HTML
     const modal = document.createElement('div');
@@ -57,7 +56,6 @@ async function showOnboarding(isRestarting = false){
         </div>
     `;
     document.body.appendChild(modal);
-    console.log('[showOnboarding] modal appended to DOM');
 
     // Helper to create a category input row
     function addCatRow(name='', limit='', type='expense'){
@@ -141,13 +139,11 @@ async function showOnboarding(isRestarting = false){
 
     // Skip button
     skipBtn.addEventListener('click', () => {
-        console.log('[showOnboarding] skip clicked');
         modal.remove();
     });
 
     // Save button
     saveBtn.addEventListener('click', async () => {
-        console.log('[showOnboarding] save clicked');
         const rawMonth = document.getElementById('onboard-month').value.trim();
         const baseBudget = parseFloat(document.getElementById('onboard-base').value);
 
@@ -163,10 +159,9 @@ async function showOnboarding(isRestarting = false){
         let categories = [];
         const keepExisting = keepCheckbox && keepCheckbox.checked;
 
-        if(keepExisting){
+        if (keepExisting) {
             // Keep existing categories with their limits
             categories = state.categories || [];
-            console.log('[showOnboarding] keeping existing categories:', categories.length);
         } else {
             // Either collect new categories or start with empty array
             const rows = Array.from(categoryList.children).filter(r => r.classList.contains('d-flex'));
@@ -187,11 +182,9 @@ async function showOnboarding(isRestarting = false){
                     categories.push({ name, limit, type });
                 }
             }
-            console.log('[showOnboarding] starting with new categories:', categories.length);
         }
 
         // Reset to new month and reload pages
-        console.log('[showOnboarding] calling resetForNewMonth');
         await resetForNewMonth({ month, baseBudget, categories });
         // Show confirmation toast
         try{ window.showToast('Saved successfully'); }catch(e){}
@@ -207,26 +200,43 @@ async function showOnboarding(isRestarting = false){
 window.showOnboarding = showOnboarding;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const state = await initStorage();
-    mountHeader();
+    const unsubscribe = initAuthListener(async (user) => {
+        if (!user) {
+            console.log('[App] No authenticated user, redirecting to login.html');
+            unsubscribe();
+            window.location.href = 'login.html';
+            return;
+        }
 
-    // Check if we're restarting (came from settings)
-    const isRestarting = sessionStorage.getItem('showOnboardingAfterRestart');
-    sessionStorage.removeItem('showOnboardingAfterRestart'); // Clear the flag
-    
-    // Show onboarding if: first run (no month) OR restarting
-    if(isRestarting || !state || !state.meta || !state.meta.month){
-        console.log('[DOMContentLoaded] showing onboarding (isRestarting:', isRestarting, ')');
-        showOnboarding(isRestarting);
-    }
+        const loadingOverlay = document.getElementById('auth-loading');
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
 
-    // If page-specific init functions exist, call them.
-    if (window.initDashboard) window.initDashboard();
-    if (window.initTransactions) window.initTransactions();
-    if (window.initSettings) window.initSettings();
+        console.log('[App] User authenticated:', user.email);
+        unsubscribe();
 
-    // Show persistent budget mismatch banner across pages (if any)
-    try{ window.showBudgetWarningBanner?.(); }catch(e){/* noop */}
+        // Load state from Firestore
+        const state = await initCloudStorage();
+        console.log('[App] Cloud storage initialized');
+
+        mountHeader();
+
+        // Check if we're restarting (came from settings)
+        const isRestarting = sessionStorage.getItem('showOnboardingAfterRestart');
+        sessionStorage.removeItem('showOnboardingAfterRestart'); // Clear the flag
+        
+        // Show onboarding if: first run (no month) OR restarting
+        if(isRestarting || !state || !state.meta || !state.meta.month){
+            showOnboarding(isRestarting);
+        }
+
+        // If page-specific init functions exist, call them.
+        if (window.initDashboard) window.initDashboard();
+        if (window.initTransactions) window.initTransactions();
+        if (window.initSettings) window.initSettings();
+
+        // Show persistent budget mismatch banner across pages (if any)
+        try{ window.showBudgetWarningBanner?.(); }catch(e){/* noop */}
+    });
 });
 
 // Small toast helper for brief success/info messages
@@ -250,6 +260,23 @@ window.showToast = function(message, { timeout = 3000 } = {}){
         document.body.appendChild(t);
         setTimeout(()=>{ t.style.transition = 'opacity 300ms'; t.style.opacity = '0'; setTimeout(()=>t.remove(), 320); }, timeout);
     }catch(e){ console.warn('showToast failed', e); }
+};
+
+// Logout handler
+window.handleLogout = async function() {
+    const confirmed = await showLogoutConfirm();
+    if (!confirmed) return;
+    
+    const result = await logout();
+    if (result.success) {
+        window.showToast('Logged out successfully');
+        // Redirect to a page that will trigger auth modal
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1000);
+    } else {
+        window.showToast('Logout failed: ' + result.error);
+    }
 };
 
 // Persistent banner: show when total category limits exceed base budget

@@ -10,6 +10,11 @@ const Header = () => {
               <a data-nav href="transactions.html" class="text-muted text-decoration-none">Transactions</a>
               <a data-nav href="settings.html" class="text-muted text-decoration-none">Settings</a>
             </nav>
+            <!-- User email and logout button -->
+            <div class="d-flex align-items-center gap-2 border-start ps-3">
+              <span id="user-email" class="small text-muted"></span>
+              <button id="logout-btn" class="btn btn-link btn-sm text-danger text-decoration-none">Logout</button>
+            </div>
           </div>
         </div>
       </header>
@@ -43,12 +48,34 @@ function highlightActiveLinks(container=document){
 }
 
 // Called after Header() has been injected into the DOM to wire up active link state.
-export function initHeader(){
+export async function initHeader(){
     const el = document.getElementById('app-header');
     if(!el) return;
     highlightActiveLinks(el);
     // Re-highlight on navigation (in case links are used without full page reload)
     window.addEventListener('popstate', ()=> highlightActiveLinks(document));
+    
+    // Set user email and logout handler
+    try {
+        const { getCurrentUser } = await import('../js/auth.js');
+        const userEmailEl = document.getElementById('user-email');
+        const logoutBtn = document.getElementById('logout-btn');
+        const user = getCurrentUser();
+        
+        if (user && userEmailEl) {
+            userEmailEl.textContent = user.email;
+        }
+        
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                if (window.handleLogout) {
+                    await window.handleLogout();
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('initHeader auth setup error', e);
+    }
 }
 
 export default Header;
