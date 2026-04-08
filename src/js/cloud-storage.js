@@ -1,253 +1,316 @@
-// Cloud Storage module using Firestore
 import { db, auth } from "./firebase-config.js";
-import {
-	doc,
-	setDoc,
-	getDoc,
-	updateDoc,
-	serverTimestamp,
-} from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
-const DEFAULT_STATE = {
+const DEFAULT_STATE = Object.freeze({
 	meta: {
 		month: null,
 		baseBudget: 0,
 	},
 	categories: [],
 	transactions: [],
-};
+});
 
-// Get user's data document path
+function cloneDefaultState() {
+	return {
+		meta: { ...DEFAULT_STATE.meta },
+		categories: [],
+		transactions: [],
+	};
+}
+
+function makeId(prefix) {
+	return `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function getUserDataPath() {
 	const user = auth.currentUser;
 	if (!user) throw new Error("User not authenticated");
 	return doc(db, "users", user.uid, "userData", "appState");
 }
 
-// Initialize user's data in Firestore
+function emitAppEvent(name, detail) {
+	try {
+		window.dispatchEvent(new CustomEvent(name, { detail }));
+	} catch {
+		// noop
+	}
+}
+
+function normalizeCategory(category = {}, fallbackIndex = 0) {
+	const type = category.type === "income" ? "income" : "expense";
+
+	const normalized = {
+		id: category.id || makeId(`c${fallbackIndex}_`),
+		name: String(category.name || "Unnamed"),
+		type,
+	};
+
+	if (type !== "income") {
+		normalized.limit = Number.isFinite(Number(category.limit))
+			? Number(category.limit)
+			: 0;
+	}
+
+	return normalized;
+}
+
+function normalizeTransaction(transaction = {}, fallbackIndex = 0) {
+	return {
+		id: transaction.id || makeId(`t${fallbackIndex}_`),
+		date: transaction.date || "",
+		amount: Number.isFinite(Number(transaction.amount))
+			? Number(transaction.amount)
+			: 0,
+		categoryId: transaction.categoryId || "",
+		type: transaction.type === "income" ? "income" : "expense",
+		description: String(transaction.description || ""),
+	};
+}
+
+function sanitizeState(state = {}) {
+	const safeState = cloneDefaultState();
+
+	safeState.meta = {
+		month: state.meta?.month || null,
+		baseBudget: Number.isFinite(Number(state.meta?.baseBudget))
+			? Number(state.meta.baseBudget)
+			: 0,
+	};
+
+	safeState.categories = Array.isArray(state.categories)
+		? state.categories.map(normalizeCategory)
+		: [];
+
+	safeState.transactions = Array.isArray(state.transactions)
+		? state.transactions.map(normalizeTransaction)
+		: [];
+
+	return safeState;
+}
+
+async function readStateDoc() {
+	const docRef = getUserDataPath();
+	const docSnap = await getDoc(docRef);
+
+	if (!docSnap.exists()) {
+		return null;
+	}
+
+	const data = docSnap.data();
+	const { updatedAt, ...state } = data;
+	return sanitizeState(state);
+}
+
+async function writeStateDoc(state) {
+	const cleanedState = sanitizeState(state);
+	const docRef = getUserDataPath();
+
+	await setDoc(docRef, {
+		...cleanedState,
+		updatedAt: serverTimestamp(),
+	});
+
+	return cleanedState;
+}
+
 export async function initCloudStorage() {
 	try {
-		const docRef = getUserDataPath();
-		const docSnap = await getDoc(docRef);
-
-		if (!docSnap.exists()) {
-			console.log("[Cloud Storage] Creating new user data");
-			await setDoc(docRef, {
-				...DEFAULT_STATE,
-				updatedAt: serverTimestamp(),
-			});
-			return DEFAULT_STATE;
+		const existing = await readStateDoc();
+		if (existing) {
+			console.log("[Cloud Storage] User data loaded");
+			return existing;
 		}
 
-		console.log("[Cloud Storage] User data loaded");
-		const data = docSnap.data();
-		// Remove server timestamp from returned object
-		const { updatedAt, ...state } = data;
-		return state || DEFAULT_STATE;
+		console.log("[Cloud Storage] Creating new user data");
+		const initialState = cloneDefaultState();
+		await writeStateDoc(initialState);
+		return initialState;
 	} catch (error) {
 		console.error("[Cloud Storage] Init error:", error);
 		throw error;
 	}
 }
 
-// Get current app state
 export async function getState() {
 	try {
-		const docRef = getUserDataPath();
-		const docSnap = await getDoc(docRef);
-
-		if (!docSnap.exists()) {
-			return DEFAULT_STATE;
-		}
-
-		const data = docSnap.data();
-		const { updatedAt, ...state } = data;
-		return state || DEFAULT_STATE;
+		const state = await readStateDoc();
+		return state || cloneDefaultState();
 	} catch (error) {
 		console.error("[Cloud Storage] Get state error:", error);
-		return DEFAULT_STATE;
+		return cloneDefaultState();
 	}
 }
 
-// Save entire state to Firestore
 export async function saveState(state) {
 	try {
-		// Dispatch saving event
-		window.dispatchEvent(new CustomEvent("appSaving"));
+		emitAppEvent("appSaving");
 
-		// Clean the state to remove undefined values (Firestore doesn't allow them)
-		const cleanedState = JSON.parse(JSON.stringify(state));
+		const cleanedState = await writeStateDoc(state);
 
-		const docRef = getUserDataPath();
-		await updateDoc(docRef, {
-			...cleanedState,
-			updatedAt: serverTimestamp(),
-		});
-
-		// Dispatch custom event for UI updates
-		try {
-			window.dispatchEvent(
-				new CustomEvent("appStateChanged", { detail: state }),
-			);
-		} catch (e) {
-			/* noop */
-		}
-
-		// Dispatch saved event
-		window.dispatchEvent(new CustomEvent("appSaved"));
+		emitAppEvent("appStateChanged", cleanedState);
+		emitAppEvent("appSaved");
 
 		return true;
 	} catch (error) {
 		console.error("[Cloud Storage] Save state error:", error);
-		// Dispatch failed event
-		window.dispatchEvent(
-			new CustomEvent("appSaveFailed", { detail: { error } }),
-		);
+		emitAppEvent("appSaveFailed", { error });
 		return false;
 	}
 }
 
-// Month/Budget management
 export async function resetForNewMonth({ month, baseBudget, categories } = {}) {
-	const state = await getState();
-	const newState = {
+	const current = await getState();
+
+	const nextState = {
 		meta: {
-			...state.meta,
+			...current.meta,
 			month: month || null,
 			baseBudget: Number(baseBudget || 0),
 		},
 		categories:
 			typeof categories === "undefined"
-				? state.categories
+				? current.categories
 				: Array.isArray(categories)
-					? categories.map((c, i) => ({
-							id: `c${Date.now()}_${i}`,
-							name: c.name,
-							limit: c.type === "income" ? undefined : Number(c.limit || 0),
-							type: c.type || "expense",
-						}))
-					: state.categories,
+					? categories.map((category, index) =>
+							normalizeCategory(
+								{ ...category, id: makeId(`c${index}_`) },
+								index,
+							),
+						)
+					: current.categories,
 		transactions: [],
 	};
-	await saveState(newState);
-	return newState;
+
+	await saveState(nextState);
+	return sanitizeState(nextState);
 }
 
-// Category helpers
 export async function addCategory({ name, limit = 0, type = "expense" } = {}) {
 	const state = await getState();
-	const id = `c${Date.now()}`;
-	const category = {
-		id,
-		name: String(name || "Unnamed"),
-		type: type === "income" ? "income" : "expense",
-	};
-	if (type !== "income") {
-		category.limit = Number(isNaN(Number(limit)) ? 0 : Number(limit));
-	}
+
+	const category = normalizeCategory({
+		id: makeId("c"),
+		name,
+		limit,
+		type,
+	});
+
 	state.categories.push(category);
 	await saveState(state);
+
 	return category;
 }
 
-export async function updateCategory(id, { name, limit, type } = {}) {
+export async function updateCategory(id, updates = {}) {
 	const state = await getState();
-	const cat = state.categories.find((c) => c.id === id);
-	if (!cat) return null;
+	const existing = state.categories.find((category) => category.id === id);
+	if (!existing) return null;
 
-	if (typeof name !== "undefined") cat.name = String(name);
-	if (typeof type !== "undefined") {
-		const normalized = type === "income" ? "income" : "expense";
-		cat.type = normalized;
-		if (normalized === "income") {
-			delete cat.limit;
-		} else {
-			if (typeof limit === "undefined" && typeof cat.limit === "undefined")
-				cat.limit = 0;
-		}
-	}
-	if (typeof limit !== "undefined") {
-		if (cat.type !== "income")
-			cat.limit = Number(isNaN(Number(limit)) ? cat.limit : Number(limit));
-	}
+	const merged = {
+		...existing,
+		...updates,
+		id: existing.id,
+	};
+
+	const normalized = normalizeCategory(merged);
+	const index = state.categories.findIndex((category) => category.id === id);
+	state.categories[index] = normalized;
 
 	await saveState(state);
-	return cat;
+	return normalized;
 }
 
 export async function removeCategory(id) {
 	const state = await getState();
-	state.categories = state.categories.filter((c) => c.id !== id);
+	state.categories = state.categories.filter((category) => category.id !== id);
 	await saveState(state);
 	return state;
 }
 
-// Transactions
-export async function addTransaction(tx) {
+export async function addTransaction(transaction) {
 	const state = await getState();
-	const t = Object.assign({ id: `t${Date.now()}` }, tx);
-	state.transactions.push(t);
+
+	const nextTransaction = normalizeTransaction({
+		id: makeId("t"),
+		...transaction,
+	});
+
+	state.transactions.push(nextTransaction);
 	await saveState(state);
-	return t;
+
+	return nextTransaction;
 }
 
 export async function editTransaction(id, patch) {
 	const state = await getState();
-	const idx = state.transactions.findIndex((t) => t.id === id);
-	if (idx === -1) return null;
-	state.transactions[idx] = { ...state.transactions[idx], ...patch };
+	const index = state.transactions.findIndex(
+		(transaction) => transaction.id === id,
+	);
+	if (index === -1) return null;
+
+	state.transactions[index] = normalizeTransaction({
+		...state.transactions[index],
+		...patch,
+		id,
+	});
+
 	await saveState(state);
-	return state.transactions[idx];
+	return state.transactions[index];
 }
 
 export async function deleteTransaction(id) {
 	const state = await getState();
-	state.transactions = state.transactions.filter((t) => t.id !== id);
+	state.transactions = state.transactions.filter(
+		(transaction) => transaction.id !== id,
+	);
 	await saveState(state);
 	return state;
 }
 
-// Transfers between categories
 export async function transferBetweenCategories(
 	fromCategoryId,
 	toCategoryId,
 	amount,
 ) {
 	const state = await getState();
-	const from = state.categories.find((c) => c.id === fromCategoryId);
-	const to = state.categories.find((c) => c.id === toCategoryId);
-	amount = Number(amount);
+
+	const from = state.categories.find(
+		(category) => category.id === fromCategoryId,
+	);
+	const to = state.categories.find((category) => category.id === toCategoryId);
+	const numericAmount = Number(amount);
 
 	if (!from || !to) throw new Error("Invalid category");
-	if (from.type === "income" || to.type === "income")
+	if (from.type === "income" || to.type === "income") {
 		throw new Error("Transfers only supported between expense categories");
-	if (typeof from.limit !== "number" || typeof to.limit !== "number")
-		throw new Error("Invalid category limits for transfer");
+	}
+	if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+		throw new Error("Invalid transfer amount");
+	}
 
 	const spentInFrom = state.transactions
-		.filter((t) => t.categoryId === fromCategoryId && t.type === "expense")
-		.reduce((s, t) => s + Number(t.amount), 0);
-	const available = Number(from.limit) - spentInFrom;
+		.filter(
+			(transaction) =>
+				transaction.categoryId === fromCategoryId &&
+				transaction.type === "expense",
+		)
+		.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
 
-	if (available < amount)
+	const available = Number(from.limit || 0) - spentInFrom;
+	if (available < numericAmount) {
 		throw new Error("Insufficient available funds in source category");
+	}
 
-	from.limit = Number(from.limit) - amount;
-	to.limit = Number(to.limit) + amount;
+	from.limit = Number(from.limit || 0) - numericAmount;
+	to.limit = Number(to.limit || 0) + numericAmount;
 
 	await saveState(state);
 	return { from, to };
 }
 
-// Clear all user data
 export async function clearAllData() {
 	try {
-		const docRef = getUserDataPath();
-		const newData = {
-			...DEFAULT_STATE,
-			updatedAt: serverTimestamp(),
-		};
-		await setDoc(docRef, newData);
+		await writeStateDoc(cloneDefaultState());
 		console.log("[Cloud Storage] All data cleared");
 		return true;
 	} catch (error) {
@@ -256,7 +319,6 @@ export async function clearAllData() {
 	}
 }
 
-// Export/Import helpers
 export async function exportData() {
 	const state = await getState();
 	return JSON.stringify(state, null, 2);
@@ -264,17 +326,9 @@ export async function exportData() {
 
 export async function importData(jsonString) {
 	try {
-		const data = JSON.parse(jsonString);
-		if (
-			!data ||
-			typeof data !== "object" ||
-			!data.meta ||
-			!Array.isArray(data.categories) ||
-			!Array.isArray(data.transactions)
-		) {
-			throw new Error("Invalid data format");
-		}
-		await saveState(data);
+		const parsed = JSON.parse(jsonString);
+		const cleaned = sanitizeState(parsed);
+		await saveState(cleaned);
 		return true;
 	} catch (error) {
 		console.error("[Cloud Storage] Import error:", error);

@@ -1,4 +1,4 @@
-import { signIn, signUp, initAuthListener, getCurrentUser } from "./auth.js";
+import { signIn, signUp, initAuthListener } from "./auth.js";
 
 const emailInput = document.getElementById("auth-email");
 const passwordInput = document.getElementById("auth-password");

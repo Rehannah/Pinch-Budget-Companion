@@ -5,6 +5,7 @@ import {
 	createUserWithEmailAndPassword,
 	signOut,
 } from "firebase/auth";
+import { showModal } from "./components/modal.js";
 
 export function initAuthListener(callback) {
 	console.log("[Auth] Registering auth listener");
@@ -51,4 +52,23 @@ export async function logout() {
 	} catch (error) {
 		return { success: false, error: error.message };
 	}
+}
+
+export function showLogoutConfirm() {
+	return new Promise((resolve) => {
+		showModal({
+			title: "Confirm Logout",
+			html: "<p>Are you sure you want to log out?</p>",
+			saveText: "Logout",
+			cancelText: "Cancel",
+			onSave: () => {
+				resolve(true);
+				return true;
+			},
+			onCancel: () => {
+				resolve(false);
+				return true;
+			},
+		});
+	});
 }

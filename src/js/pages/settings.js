@@ -1,5 +1,3 @@
-// This file contains the logic for the settings page.
-
 import {
 	getState,
 	resetForNewMonth,
@@ -7,162 +5,257 @@ import {
 	exportData,
 	importData,
 } from "../cloud-storage.js";
+import { showModal } from "../components/modal.js";
+import { showToast } from "../components/toast.js";
+import { clearServiceWorkersAndCaches } from "../utils/browser-storage.js";
 
-window.initSettings = async function () {
-	const btn = document.getElementById("restart-app");
-	if (btn)
-		btn.addEventListener("click", async () => {
-			// Show a modal to choose restart options (keep categories or clear everything)
-			const html = `
-            <div class="space-y-3">
-                <label class="block text-sm">New month</label>
-                <input id="restart-month" type="month" class="w-full p-2 border rounded" />
-                <label class="block text-sm">Base budget</label>
-                <input id="restart-base" type="number" step="0.01" class="w-full p-2 border rounded" placeholder="0.00" />
-                <label class="flex items-center gap-2"><input id="restart-keep-cats" type="checkbox" /> Keep existing categories for next month</label>
-                <div class="text-sm text-gray-600">If you do NOT keep categories, all categories and transactions will be cleared and the app will start fresh.</div>
-                <label class="flex items-center gap-2 mt-2"><input id="restart-clear-all" type="checkbox" /> Also clear <strong>everything</strong> (delete all metadata, categories, transactions)</label>
+let settingsHandlersBound = false;
+
+export async function initSettings() {
+	if (!settingsHandlersBound) {
+		bindSettingsHandlers();
+		settingsHandlersBound = true;
+	}
+}
+
+window.initSettings = initSettings;
+
+function bindSettingsHandlers() {
+	document
+		.getElementById("restart-app")
+		?.addEventListener("click", openRestartModal);
+
+	document
+		.getElementById("export-data")
+		?.addEventListener("click", handleExportData);
+
+	document
+		.getElementById("import-data")
+		?.addEventListener("click", handleImportData);
+}
+
+async function openRestartModal() {
+	const html = `
+        <div class="mb-3">
+            <label class="form-label small">New month</label>
+            <input id="restart-month" type="month" class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small">Base budget</label>
+            <input
+                id="restart-base"
+                type="number"
+                step="0.01"
+                class="form-control"
+                placeholder="0.00"
+            />
+        </div>
+
+        <div class="form-check mb-2">
+            <input id="restart-keep-cats" class="form-check-input" type="checkbox" />
+            <label class="form-check-label" for="restart-keep-cats">
+                Keep existing categories for next month
+            </label>
+        </div>
+
+        <div class="small text-muted mb-3">
+            If you do not keep categories, all categories and transactions will be cleared and the app will start fresh.
+        </div>
+
+        <div class="form-check">
+            <input id="restart-clear-all" class="form-check-input" type="checkbox" />
+            <label class="form-check-label" for="restart-clear-all">
+                Also clear <strong>everything</strong> (delete all metadata, categories, and transactions)
+            </label>
+        </div>
+    `;
+
+	showModal({
+		title: "Restart for new month",
+		html,
+		saveText: "Restart",
+		onSave: async () => {
+			const form = readRestartForm();
+			if (!form) return false;
+
+			if (form.clearAll) {
+				return await handleFullReset();
+			}
+
+			return await handleMonthlyRestart(form);
+		},
+	});
+}
+
+function readRestartForm() {
+	const month = document.getElementById("restart-month")?.value || null;
+	const baseBudget = parseFloat(
+		document.getElementById("restart-base")?.value || "0",
+	);
+	const keepCategories =
+		!!document.getElementById("restart-keep-cats")?.checked;
+	const clearAll = !!document.getElementById("restart-clear-all")?.checked;
+
+	if (!month) {
+		alert("Please choose a month to continue.");
+		return null;
+	}
+
+	if (Number.isNaN(baseBudget) || baseBudget < 0) {
+		alert("Base budget must be a number ≥ 0.");
+		return null;
+	}
+
+	return {
+		month,
+		baseBudget,
+		keepCategories,
+		clearAll,
+	};
+}
+
+async function handleFullReset() {
+	const confirmed = confirm(
+		"This will delete ALL app data (including month, base, categories, and transactions). Are you sure?",
+	);
+
+	if (!confirmed) return false;
+
+	await clearAllData();
+	await clearServiceWorkersAndCaches();
+
+	showToast("All app data cleared. Starting fresh.");
+
+	setTimeout(() => {
+		window.location.href = "dashboard.html";
+	}, 500);
+
+	return true;
+}
+
+async function handleMonthlyRestart({ month, baseBudget, keepCategories }) {
+	const state = await getState();
+
+	const categoriesToKeep = keepCategories
+		? state.categories.map((category) => {
+				const baseCategory = {
+					name: category.name,
+					type: category.type,
+				};
+
+				if (category.type !== "income") {
+					baseCategory.limit = category.limit;
+				}
+
+				return baseCategory;
+			})
+		: [];
+
+	const expenseCategories = categoriesToKeep.filter(
+		(category) => category.type !== "income",
+	);
+
+	const totalAssigned = expenseCategories.reduce(
+		(sum, category) => sum + Number(category.limit || 0),
+		0,
+	);
+
+	if (totalAssigned > baseBudget) {
+		alert(
+			"One or more category limits exceed the Base Budget. Please adjust limits before restarting.",
+		);
+		return false;
+	}
+
+	const remaining = Math.max(0, baseBudget - totalAssigned);
+	if (remaining > 0 && expenseCategories.length > 0) {
+		await showUnallocatedBudgetInfo(remaining);
+	}
+
+	await resetForNewMonth({
+		month,
+		baseBudget,
+		categories: categoriesToKeep,
+	});
+
+	showToast("Restart complete — new month set.");
+
+	setTimeout(() => {
+		window.location.href = "dashboard.html";
+	}, 400);
+
+	return true;
+}
+
+function showUnallocatedBudgetInfo(remaining) {
+	return new Promise((resolve) => {
+		const html = `
+            <div class="mb-2">
+                <p class="small">
+                    You have $${remaining.toLocaleString(undefined, {
+											minimumFractionDigits: 2,
+											maximumFractionDigits: 2,
+										})} unallocated from your base budget.
+                    You can manually allocate this later from Settings or the Dashboard.
+                </p>
             </div>
         `;
 
-			window.showModal({
-				title: "Restart for new month",
-				html,
-				saveText: "Restart",
-				onSave: async () => {
-					const month = document.getElementById("restart-month").value || null;
-					const base =
-						parseFloat(document.getElementById("restart-base").value) || 0;
-					const keepCats =
-						!!document.getElementById("restart-keep-cats").checked;
-
-					if (!month) {
-						alert("Please choose a month to continue.");
-						return false; // keep modal open
-					}
-					if (Number.isNaN(base) || base < 0) {
-						alert("Base budget must be a number ≥ 0.");
-						return false;
-					}
-
-					// If user requested full clear, delete all persisted data and caches.
-					const clearAll =
-						!!document.getElementById("restart-clear-all").checked;
-					if (clearAll) {
-						// Confirm destructive action
-						if (
-							!confirm(
-								"This will delete ALL app data (including month, base, categories, and transactions). Are you sure?",
-							)
-						)
-							return false;
-						// Clear Firestore storage document
-						await clearAllData();
-						// Clear SW caches (best-effort)
-						if (window.clearServiceWorkersAndCaches)
-							await window.clearServiceWorkersAndCaches();
-						// Notify user
-						if (window.showToast)
-							window.showToast("All app data cleared. Starting fresh.");
-						// Redirect to dashboard which will trigger onboarding (no month set)
-						setTimeout(() => (window.location.href = "dashboard.html"), 500);
-						return;
-					}
-
-					// When keepCats is true, pass the current categories into resetForNewMonth so they persist
-					// When false, pass an empty array so categories are cleared.
-					const state = await getState();
-					let catsToPass = keepCats
-						? state.categories.map((c) => ({
-								name: c.name,
-								limit: c.limit,
-								type: c.type,
-							}))
-						: [];
-					// Validate category limits do not exceed baseBudget
-					const expenseCats = catsToPass.filter((c) => c.type !== "income");
-					const totalAssigned = expenseCats.reduce(
-						(s, c) => s + Number(c.limit || 0),
-						0,
-					);
-					if (totalAssigned > base) {
-						alert(
-							"One or more category limits exceed the Base Budget. Please adjust limits before restarting.",
-						);
-						return false;
-					}
-					// If there is remaining unallocated budget, inform the user (do not auto-apply)
-					const remaining = Math.max(0, base - totalAssigned);
-					if (remaining > 0 && expenseCats.length > 0) {
-						const html2 = `<div class="mb-2"><p class="small">You have $${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unallocated from your base budget. You can manually allocate this later from Settings or the Dashboard.</p></div>`;
-						// show informational modal only; do not automatically add the remaining amount to any category
-						await new Promise((res) => {
-							window.showModal({
-								title: "Unallocated budget",
-								html: html2,
-								saveText: "OK",
-								onSave: () => {
-									res();
-								},
-								onCancel: () => {
-									res();
-								},
-							});
-						});
-					}
-
-					await resetForNewMonth({
-						month,
-						baseBudget: base,
-						categories: catsToPass,
-					});
-					if (window.showToast)
-						window.showToast("Restart complete — new month set.");
-					// Redirect to dashboard
-					setTimeout(() => (window.location.href = "dashboard.html"), 400);
-				},
-			});
+		showModal({
+			title: "Unallocated budget",
+			html,
+			saveText: "OK",
+			onSave: () => {
+				resolve(true);
+				return true;
+			},
+			onCancel: () => {
+				resolve(true);
+				return true;
+			},
 		});
+	});
+}
 
-	// Export data
-	const exportBtn = document.getElementById("export-data");
-	if (exportBtn)
-		exportBtn.addEventListener("click", async () => {
-			const data = await exportData();
-			const blob = new Blob([data], { type: "application/json" });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = "pinch-budget-data.json";
-			a.click();
-			URL.revokeObjectURL(url);
-			if (window.showToast) window.showToast("Data exported successfully.");
-		});
+async function handleExportData() {
+	const data = await exportData();
+	const blob = new Blob([data], { type: "application/json" });
+	const url = URL.createObjectURL(blob);
 
-	// Import data
-	const importBtn = document.getElementById("import-data");
-	if (importBtn)
-		importBtn.addEventListener("click", () => {
-			const input = document.createElement("input");
-			input.type = "file";
-			input.accept = ".json";
-			input.addEventListener("change", async (e) => {
-				const file = e.target.files[0];
-				if (!file) return;
-				const reader = new FileReader();
-				reader.onload = async (e) => {
-					const json = e.target.result;
-					const success = await importData(json);
-					if (success) {
-						if (window.showToast)
-							window.showToast("Data imported successfully. Refreshing...");
-						setTimeout(() => window.location.reload(), 1000);
-					} else {
-						alert("Failed to import data. Please check the file format.");
-					}
-				};
-				reader.readAsText(file);
-			});
-			input.click();
-		});
-};
+	const anchor = document.createElement("a");
+	anchor.href = url;
+	anchor.download = "pinch-budget-data.json";
+	anchor.click();
+
+	URL.revokeObjectURL(url);
+	showToast("Data exported successfully.");
+}
+
+function handleImportData() {
+	const input = document.createElement("input");
+	input.type = "file";
+	input.accept = ".json";
+
+	input.addEventListener("change", async (event) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = async (loadEvent) => {
+			const json = loadEvent.target?.result;
+			const success = await importData(json);
+
+			if (success) {
+				showToast("Data imported successfully. Refreshing...");
+				setTimeout(() => window.location.reload(), 1000);
+			} else {
+				alert("Failed to import data. Please check the file format.");
+			}
+		};
+
+		reader.readAsText(file);
+	});
+
+	input.click();
+}
