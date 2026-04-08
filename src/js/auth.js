@@ -1,71 +1,54 @@
-// Authentication module for Firebase
 import { auth } from "./firebase-config.js";
 import {
-	createUserWithEmailAndPassword,
-	signInWithEmailAndPassword,
-	signOut,
 	onAuthStateChanged,
+	signInWithEmailAndPassword,
+	createUserWithEmailAndPassword,
+	signOut,
 } from "firebase/auth";
 
-let currentUser = null;
-
-// Listen for auth state changes
 export function initAuthListener(callback) {
-	return onAuthStateChanged(auth, (user) => {
-		currentUser = user;
-		console.log(
-			"[Auth] State changed:",
-			user ? `Logged in as ${user.email}` : "Logged out",
-		);
-		if (callback) callback(user);
-	});
+	console.log("[Auth] Registering auth listener");
+
+	return onAuthStateChanged(
+		auth,
+		(user) => {
+			console.log("[Auth] Auth state changed:", user ? user.email : "no user");
+			callback(user);
+		},
+		(error) => {
+			console.error("[Auth] Listener error:", error);
+			callback(null);
+		},
+	);
 }
 
-// Get currently authenticated user
 export function getCurrentUser() {
-	return currentUser;
+	return auth.currentUser;
 }
 
-// Sign up with email/password
-export async function signUp(email, password) {
-	try {
-		const userCredential = await createUserWithEmailAndPassword(
-			auth,
-			email,
-			password,
-		);
-		console.log("[Auth] Sign up successful:", userCredential.user.email);
-		return { success: true, user: userCredential.user };
-	} catch (error) {
-		console.error("[Auth] Sign up error:", error.message);
-		return { success: false, error: error.message };
-	}
-}
-
-// Sign in with email/password
 export async function signIn(email, password) {
 	try {
-		const userCredential = await signInWithEmailAndPassword(
-			auth,
-			email,
-			password,
-		);
-		console.log("[Auth] Sign in successful:", userCredential.user.email);
-		return { success: true, user: userCredential.user };
+		const cred = await signInWithEmailAndPassword(auth, email, password);
+		return { success: true, user: cred.user };
 	} catch (error) {
-		console.error("[Auth] Sign in error:", error.message);
 		return { success: false, error: error.message };
 	}
 }
 
-// Sign out
+export async function signUp(email, password) {
+	try {
+		const cred = await createUserWithEmailAndPassword(auth, email, password);
+		return { success: true, user: cred.user };
+	} catch (error) {
+		return { success: false, error: error.message };
+	}
+}
+
 export async function logout() {
 	try {
 		await signOut(auth);
-		console.log("[Auth] Logged out");
 		return { success: true };
 	} catch (error) {
-		console.error("[Auth] Logout error:", error.message);
 		return { success: false, error: error.message };
 	}
 }

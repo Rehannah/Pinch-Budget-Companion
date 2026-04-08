@@ -34,7 +34,7 @@ export async function initCloudStorage() {
 			console.log("[Cloud Storage] Creating new user data");
 			await setDoc(docRef, {
 				...DEFAULT_STATE,
-				lastUpdated: serverTimestamp(),
+				updatedAt: serverTimestamp(),
 			});
 			return DEFAULT_STATE;
 		}
@@ -42,7 +42,7 @@ export async function initCloudStorage() {
 		console.log("[Cloud Storage] User data loaded");
 		const data = docSnap.data();
 		// Remove server timestamp from returned object
-		const { lastUpdated, ...state } = data;
+		const { updatedAt, ...state } = data;
 		return state || DEFAULT_STATE;
 	} catch (error) {
 		console.error("[Cloud Storage] Init error:", error);
@@ -61,7 +61,7 @@ export async function getState() {
 		}
 
 		const data = docSnap.data();
-		const { lastUpdated, ...state } = data;
+		const { updatedAt, ...state } = data;
 		return state || DEFAULT_STATE;
 	} catch (error) {
 		console.error("[Cloud Storage] Get state error:", error);
@@ -72,10 +72,13 @@ export async function getState() {
 // Save entire state to Firestore
 export async function saveState(state) {
 	try {
+		// Dispatch saving event
+		window.dispatchEvent(new CustomEvent("appSaving"));
+
 		const docRef = getUserDataPath();
 		await updateDoc(docRef, {
 			...state,
-			lastUpdated: serverTimestamp(),
+			updatedAt: serverTimestamp(),
 		});
 
 		// Dispatch custom event for UI updates
@@ -87,9 +90,16 @@ export async function saveState(state) {
 			/* noop */
 		}
 
+		// Dispatch saved event
+		window.dispatchEvent(new CustomEvent("appSaved"));
+
 		return true;
 	} catch (error) {
 		console.error("[Cloud Storage] Save state error:", error);
+		// Dispatch failed event
+		window.dispatchEvent(
+			new CustomEvent("appSaveFailed", { detail: { error } }),
+		);
 		return false;
 	}
 }
@@ -233,7 +243,7 @@ export async function clearAllData() {
 		const docRef = getUserDataPath();
 		const newData = {
 			...DEFAULT_STATE,
-			lastUpdated: serverTimestamp(),
+			updatedAt: serverTimestamp(),
 		};
 		await setDoc(docRef, newData);
 		console.log("[Cloud Storage] All data cleared");
