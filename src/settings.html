@@ -3,14 +3,13 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<!-- Bootstrap CSS -->
 		<link
 			href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
 			rel="stylesheet"
 		/>
-		<!-- Project styles -->
 		<link rel="stylesheet" href="css/styles.css" />
 		<link rel="stylesheet" href="css/components.css" />
+
 		<title>Settings — Pinch</title>
 		<link rel="manifest" href="/manifest.json" />
 		<link rel="icon" href="/icons/icon-192x192.svg" />
@@ -18,9 +17,86 @@
 		<meta name="theme-color" content="#9b7cff" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-title" content="Pinch" />
+
+		<style>
+			.page-section-title {
+				font-size: 0.85rem;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: #6c757d;
+				margin-bottom: 0.75rem;
+			}
+
+			.surface-card {
+				background: #fff;
+				border: 1px solid #f1f3f5;
+				border-radius: 1rem;
+				box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.06);
+			}
+
+			.release-notes-card {
+				margin-top: 2rem;
+			}
+
+			.inner-panel {
+				border: 1px solid #ececf3;
+				border-radius: 0.85rem;
+				background: linear-gradient(180deg, #ffffff 0%, #fcfbff 100%);
+				padding: 1.25rem;
+				height: 100%;
+			}
+
+			.version-item {
+				border-left: 4px solid #9b7cff;
+				padding-left: 1rem;
+				margin-bottom: 1.25rem;
+			}
+
+			.version-item.old {
+				border-left-color: #dee2e6;
+			}
+
+			.version-item:last-child {
+				margin-bottom: 0;
+			}
+
+			.version-item h4 {
+				font-size: 1rem;
+				margin-bottom: 0.4rem;
+			}
+
+			.version-item ul {
+				padding-left: 1.2rem;
+				margin-bottom: 0;
+			}
+
+			.version-item li,
+			.upcoming-list li {
+				margin-bottom: 0.35rem;
+			}
+
+			.release-badge {
+				background: rgba(155, 124, 255, 0.12);
+				color: #6f42c1;
+				border: 1px solid rgba(155, 124, 255, 0.2);
+				border-radius: 999px;
+				padding: 0.5rem 0.85rem;
+				font-weight: 600;
+				font-size: 0.85rem;
+				white-space: nowrap;
+			}
+
+			@media (max-width: 576px) {
+				.release-header {
+					flex-direction: column;
+					align-items: flex-start !important;
+					gap: 0.75rem;
+				}
+			}
+		</style>
 	</head>
 	<body>
-		<!-- Loading overlay while checking authentication -->
 		<div
 			id="auth-loading"
 			class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white"
@@ -33,51 +109,130 @@
 				<p class="text-muted">Checking authentication...</p>
 			</div>
 		</div>
+
 		<div id="app-header"></div>
-		<main class="min-vh-100 p-4 bg-surface">
-			<div class="container">
-				<section class="bg-white rounded shadow p-4">
-					<h2 class="h5 fw-semibold">Settings</h2>
-					<div class="mt-4">
-						<button id="restart-app" class="btn btn-danger w-100 mb-2">
-							Restart for New Month
-						</button>
-						<div class="d-flex gap-2">
-							<button
-								id="export-data"
-								class="btn btn-outline-primary flex-grow-1"
-							>
-								Export Data
+
+		<main class="min-vh-100 py-5 bg-surface">
+			<div class="container" style="max-width: 900px">
+				<!-- SETTINGS -->
+				<section aria-labelledby="settings-heading">
+					<div class="page-section-title">Preferences</div>
+
+					<div class="surface-card p-4">
+						<div>
+							<h1 id="settings-heading" class="h4 fw-semibold mb-1">
+								Settings
+							</h1>
+							<p class="text-muted mb-0">
+								Manage your app data and monthly reset options.
+							</p>
+						</div>
+
+						<div class="mt-4">
+							<button id="restart-app" class="btn btn-danger w-100 mb-3">
+								Restart for New Month
 							</button>
-							<button
-								id="import-data"
-								class="btn btn-outline-secondary flex-grow-1"
-							>
-								Import Data
-							</button>
+
+							<div class="row g-2">
+								<div class="col-12 col-md-6">
+									<button
+										id="export-data"
+										class="btn btn-outline-primary w-100"
+									>
+										Export Data
+									</button>
+								</div>
+								<div class="col-12 col-md-6">
+									<button
+										id="import-data"
+										class="btn btn-outline-secondary w-100"
+									>
+										Import Data
+									</button>
+								</div>
+							</div>
 						</div>
 					</div>
 				</section>
-				<section class="bg-white rounded shadow p-4 mt-4">
-					<h2 class="fw-semibold">Release Notes</h2>
-					<h3 class="h5">Current Version: <strong>0.3 </strong></h3>
-					<div class="mt-3"></div>
-					<div class="mt-3">
-						<p class="small mb-2">
-							<strong>v.0.3 - </strong>
-								<ul>
-									<li>Improved data persistence and retrieval</li>
-									<li>Added user authentication</li>
-									<li>Firebase setup</li>
-								</ul>
-						</p>
-						<p class="small text-muted">
-							v.0.2 - UI changes and functionality fixes
-						</p>
-						<p class="small text-muted">
-							v.0.1 - Dashboard, expenses and restart settings
-							functionality
-						</p>
+
+				<!-- RELEASE NOTES -->
+				<section
+					class="release-notes-card"
+					aria-labelledby="release-notes-heading"
+				>
+					<div class="page-section-title">Product Updates</div>
+
+					<div class="surface-card p-4">
+						<div
+							class="release-header d-flex justify-content-between align-items-center mb-4"
+						>
+							<div>
+								<h2 id="release-notes-heading" class="h4 fw-semibold mb-1">
+									Release Notes
+								</h2>
+								<p class="text-muted mb-0">
+									Track upcoming features and recent changes.
+								</p>
+							</div>
+							<div class="release-badge">Current Version: v0.3</div>
+						</div>
+
+						<div class="row g-4">
+							<div class="col-12 col-lg-5">
+								<div class="inner-panel">
+									<h3 class="h6 fw-semibold mb-3">Upcoming Releases</h3>
+									<ul class="upcoming-list mb-0 ps-3">
+										<li>Pinch icon and branding updates</li>
+										<li>Improved error handling</li>
+										<li>Improved data export and import functionality</li>
+										<li>User password reset functionality</li>
+										<li>Improvements to onboarding/restart flow</li>
+										<li>Release notifications</li>
+										<li>Budgeting charts and analytics</li>
+										<li>Notes for next month's expected transactions</li>
+										<li>Debt categories</li>
+									</ul>
+								</div>
+							</div>
+
+							<div class="col-12 col-lg-7">
+								<div class="inner-panel">
+									<h3 class="h6 fw-semibold mb-3">Version History</h3>
+
+									<div class="version-item">
+										<h4 class="fw-semibold">
+											v0.3
+											<span class="text-muted fw-normal">(April 2026)</span>
+										</h4>
+										<ul>
+											<li>Improved data persistence and retrieval</li>
+											<li>Added user authentication</li>
+											<li>Bug fixes</li>
+										</ul>
+									</div>
+
+									<div class="version-item old">
+										<h4 class="fw-semibold">
+											v0.2
+											<span class="text-muted fw-normal">(January 2026)</span>
+										</h4>
+										<p class="small text-muted mb-0">
+											UI changes and functionality fixes
+										</p>
+									</div>
+
+									<div class="version-item old">
+										<h4 class="fw-semibold">
+											v0.1
+											<span class="text-muted fw-normal">(December 2025)</span>
+										</h4>
+										<p class="small text-muted mb-0">
+											Dashboard, expenses, and restart settings functionality
+										</p>
+									</div>
+								</div>
+							</div>
+						</div>
 					</div>
 				</section>
 			</div>

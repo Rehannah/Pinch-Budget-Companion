@@ -199,15 +199,17 @@ async function showOnboarding(isRestarting = false) {
 							alert("Category limits must be numbers ≥ 0.");
 							return;
 						}
-					} else {
-						limit = undefined;
 					}
-
 					if (!name) {
 						alert("Category names cannot be empty.");
 						return;
 					}
-					categories.push({ name, limit, type });
+
+					if (type === "expense") {
+						categories.push({ name, limit, type });
+					} else {
+						categories.push({ name, type });
+					}
 				}
 			}
 		}

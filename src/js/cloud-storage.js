@@ -75,9 +75,12 @@ export async function saveState(state) {
 		// Dispatch saving event
 		window.dispatchEvent(new CustomEvent("appSaving"));
 
+		// Clean the state to remove undefined values (Firestore doesn't allow them)
+		const cleanedState = JSON.parse(JSON.stringify(state));
+
 		const docRef = getUserDataPath();
 		await updateDoc(docRef, {
-			...state,
+			...cleanedState,
 			updatedAt: serverTimestamp(),
 		});
 
@@ -137,12 +140,11 @@ export async function addCategory({ name, limit = 0, type = "expense" } = {}) {
 	const category = {
 		id,
 		name: String(name || "Unnamed"),
-		limit:
-			type === "income"
-				? undefined
-				: Number(isNaN(Number(limit)) ? 0 : Number(limit)),
 		type: type === "income" ? "income" : "expense",
 	};
+	if (type !== "income") {
+		category.limit = Number(isNaN(Number(limit)) ? 0 : Number(limit));
+	}
 	state.categories.push(category);
 	await saveState(state);
 	return category;
