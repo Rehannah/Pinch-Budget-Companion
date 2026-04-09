@@ -62,13 +62,6 @@ async function openRestartModal() {
         <div class="small text-muted mb-3">
             If you do not keep categories, all categories and transactions will be cleared and the app will start fresh.
         </div>
-
-        <div class="form-check">
-            <input id="restart-clear-all" class="form-check-input" type="checkbox" />
-            <label class="form-check-label" for="restart-clear-all">
-                Also clear <strong>everything</strong> (delete all metadata, categories, and transactions)
-            </label>
-        </div>
     `;
 
 	showModal({
@@ -173,10 +166,25 @@ async function handleMonthlyRestart({ month, baseBudget, keepCategories }) {
 		await showUnallocatedBudgetInfo(remaining);
 	}
 
+	const categoriesToPass = keepCategories
+		? state.categories.map((category) => {
+				const copy = {
+					name: category.name,
+					type: category.type,
+				};
+
+				if (category.type !== "income") {
+					copy.limit = category.limit;
+				}
+
+				return copy;
+			})
+		: [];
+
 	await resetForNewMonth({
 		month,
 		baseBudget,
-		categories: categoriesToKeep,
+		categories: categoriesToPass,
 	});
 
 	showToast("Restart complete — new month set.");

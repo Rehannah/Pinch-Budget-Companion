@@ -6,7 +6,9 @@ export async function showOnboarding(isRestarting = false) {
 
 	const state = await getState();
 	const hasExistingCategories =
-		isRestarting && state && state.categories && state.categories.length > 0;
+		isRestarting &&
+		Array.isArray(state?.categories) &&
+		state.categories.length > 0;
 
 	const modal = document.createElement("div");
 	modal.id = "onboard-modal";
@@ -15,19 +17,31 @@ export async function showOnboarding(isRestarting = false) {
 	modal.style.backgroundColor = "rgba(0,0,0,0.5)";
 	modal.innerHTML = `
 		<div class="bg-white rounded shadow p-4" style="max-width:28rem; width:100%">
-			<h3 class="h5 fw-semibold">${isRestarting ? "Restart" : "Welcome"} — Setup your month</h3>
+			<h3 class="h5 fw-semibold">
+				${isRestarting ? "Restart" : "Welcome"} — Set up your budget
+			</h3>
+
 			<div class="mt-3">
 				<label class="form-label small">Month</label>
-				<input id="onboard-month" type="text" class="form-control" placeholder="e.g. 01-2025" />
+				<input id="onboard-month" type="month" class="form-control" />
+
 				<label class="form-label small mt-2">Base budget</label>
-				<input id="onboard-base" type="number" step="0.01" class="form-control" placeholder="0.00" />
+				<input
+					id="onboard-base"
+					type="number"
+					step="0.01"
+					class="form-control"
+					placeholder="0.00"
+				/>
 
 				${
 					hasExistingCategories
 						? `
-				<div class="form-check mt-2 mb-2">
+				<div class="form-check mt-3 mb-2">
 					<input class="form-check-input" type="checkbox" id="onboard-keep-cats" checked />
-					<label class="form-check-label small" for="onboard-keep-cats">Keep existing categories</label>
+					<label class="form-check-label small" for="onboard-keep-cats">
+						Keep existing categories and limits
+					</label>
 				</div>
 				`
 						: ""
@@ -35,15 +49,17 @@ export async function showOnboarding(isRestarting = false) {
 
 				<div class="mt-3">
 					<div class="d-flex align-items-center justify-content-between">
-						<label class="form-label small">Categories</label>
-						<button id="onboard-add-cat" class="btn btn-link small text-primary">+ Add</button>
+						<label class="form-label small mb-0">Categories</label>
+						<button id="onboard-add-cat" type="button" class="btn btn-link small text-primary">
+							+ Add
+						</button>
 					</div>
 					<div id="onboard-cat-list" class="mt-2" style="max-height:10rem; overflow:auto"></div>
 				</div>
 
 				<div class="d-flex gap-2 justify-content-end mt-3">
-					<button id="onboard-skip" class="btn btn-secondary">Skip</button>
-					<button id="onboard-save" class="btn btn-primary">Start</button>
+					<button id="onboard-skip" type="button" class="btn btn-secondary">Skip</button>
+					<button id="onboard-save" type="button" class="btn btn-primary">Start</button>
 				</div>
 			</div>
 		</div>
@@ -51,22 +67,22 @@ export async function showOnboarding(isRestarting = false) {
 
 	document.body.appendChild(modal);
 
-	function addCatRow(name = "", limit = "", type = "expense") {
+	function addCategoryRow(name = "", limit = "", type = "expense") {
 		const row = document.createElement("div");
 		row.className = "d-flex gap-2 align-items-center mb-2";
 		row.innerHTML = `
-			<input class="form-control flex-grow-1" placeholder="Category name" value="${name}" />
-			<input class="form-control" style="width:6rem" placeholder="Limit" value="${limit}" />
+			<input class="form-control flex-grow-1" placeholder="Category name" value="${escapeHtmlAttr(name)}" />
+			<input class="form-control" style="width:6rem" placeholder="Limit" value="${escapeHtmlAttr(limit)}" />
 			<select class="form-select" style="width:8rem">
 				<option value="expense" ${type === "expense" ? "selected" : ""}>Expense</option>
 				<option value="income" ${type === "income" ? "selected" : ""}>Income</option>
 			</select>
-			<button class="btn btn-link text-danger p-0">Remove</button>
+			<button type="button" class="btn btn-link text-danger p-0">Remove</button>
 		`;
 
-		const parts = row.querySelectorAll("input,select");
-		const limitInput = parts[1];
-		const typeSelect = parts[2];
+		const inputs = row.querySelectorAll("input,select");
+		const limitInput = inputs[1];
+		const typeSelect = inputs[2];
 
 		function toggleLimit() {
 			if (typeSelect.value === "income") {
@@ -81,29 +97,34 @@ export async function showOnboarding(isRestarting = false) {
 
 		typeSelect.addEventListener("change", toggleLimit);
 		toggleLimit();
-		row.querySelector("button").addEventListener("click", () => row.remove());
+
+		row.querySelector("button")?.addEventListener("click", () => row.remove());
 
 		return row;
 	}
 
-	function updateCategoryDisplay(showExisting) {
+	function renderExistingCategories() {
 		const list = document.getElementById("onboard-cat-list");
+		if (!list) return;
 		list.innerHTML = "";
 
-		if (showExisting && state.categories.length > 0) {
-			state.categories.forEach((cat) => {
-				const label = document.createElement("div");
-				label.className = "small p-2 bg-light rounded mb-2";
+		(state.categories || []).forEach((cat) => {
+			const label = document.createElement("div");
+			label.className = "small p-2 bg-light rounded mb-2";
 
-				if (cat.type === "expense") {
-					label.textContent = `${cat.name} - $${Number(cat.limit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${cat.type})`;
-				} else {
-					label.textContent = `${cat.name} (${cat.type})`;
-				}
+			if (cat.type === "expense") {
+				label.textContent = `${cat.name} - $${Number(
+					cat.limit || 0,
+				).toLocaleString(undefined, {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				})} (${cat.type})`;
+			} else {
+				label.textContent = `${cat.name} (${cat.type})`;
+			}
 
-				list.appendChild(label);
-			});
-		}
+			list.appendChild(label);
+		});
 	}
 
 	const keepCheckbox = document.getElementById("onboard-keep-cats");
@@ -111,60 +132,74 @@ export async function showOnboarding(isRestarting = false) {
 	const addBtn = document.getElementById("onboard-add-cat");
 	const skipBtn = document.getElementById("onboard-skip");
 	const saveBtn = document.getElementById("onboard-save");
+	const monthInput = document.getElementById("onboard-month");
+	const baseInput = document.getElementById("onboard-base");
 
 	if (keepCheckbox?.checked) {
-		updateCategoryDisplay(true);
+		renderExistingCategories();
 	}
 
 	keepCheckbox?.addEventListener("change", () => {
-		updateCategoryDisplay(keepCheckbox.checked);
+		if (keepCheckbox.checked) {
+			renderExistingCategories();
+		} else if (categoryList) {
+			categoryList.innerHTML = "";
+		}
 	});
 
-	addBtn.addEventListener("click", () => {
+	addBtn?.addEventListener("click", () => {
 		if (keepCheckbox?.checked) {
 			keepCheckbox.checked = false;
-			updateCategoryDisplay(false);
+			categoryList.innerHTML = "";
 		}
-		categoryList.appendChild(addCatRow());
+		categoryList.appendChild(addCategoryRow());
 	});
 
-	skipBtn.addEventListener("click", () => modal.remove());
+	skipBtn?.addEventListener("click", () => {
+		modal.remove();
+	});
 
-	saveBtn.addEventListener("click", async () => {
-		const rawMonth = document.getElementById("onboard-month").value.trim();
-		const baseBudget = parseFloat(
-			document.getElementById("onboard-base").value,
-		);
+	saveBtn?.addEventListener("click", async () => {
+		const month = monthInput?.value || "";
+		const baseBudget = parseFloat(baseInput?.value || "");
 
-		const monthRegex = /^(0[1-9]|1[0-2])-(\d{4})$/;
-		const m = rawMonth.match(monthRegex);
-
-		if (!rawMonth || !m) {
-			alert("Please enter a month in MM-YYYY format (e.g. 01-2025).");
+		if (!month) {
+			alert("Please choose a month.");
 			return;
 		}
 
-		const month = `${m[2]}-${m[1]}`;
 		if (Number.isNaN(baseBudget) || baseBudget < 0) {
 			alert("Base budget must be a number ≥ 0.");
 			return;
 		}
 
+		const keepExisting = !!keepCheckbox?.checked;
 		let categories = [];
-		const keepExisting = keepCheckbox && keepCheckbox.checked;
 
 		if (keepExisting) {
-			categories = state.categories || [];
+			categories = (state.categories || []).map((cat) => {
+				const next = {
+					name: cat.name,
+					type: cat.type,
+				};
+
+				if (cat.type !== "income") {
+					next.limit = Number(cat.limit || 0);
+				}
+
+				return next;
+			});
 		} else {
-			const rows = Array.from(categoryList.children).filter((r) =>
-				r.classList.contains("d-flex"),
+			const rows = Array.from(categoryList.children).filter((row) =>
+				row.classList.contains("d-flex"),
 			);
 
-			for (const r of rows) {
-				const [nameInput, limitInput, typeSelect] =
-					r.querySelectorAll("input,select");
-				const name = (nameInput.value || "").trim();
-				const type = typeSelect.value || "expense";
+			for (const row of rows) {
+				const [nameInputEl, limitInputEl, typeSelectEl] =
+					row.querySelectorAll("input,select");
+
+				const name = (nameInputEl?.value || "").trim();
+				const type = typeSelectEl?.value || "expense";
 
 				if (!name) {
 					alert("Category names cannot be empty.");
@@ -172,7 +207,7 @@ export async function showOnboarding(isRestarting = false) {
 				}
 
 				if (type === "expense") {
-					const limit = Number(limitInput.value);
+					const limit = Number(limitInputEl?.value || "");
 					if (Number.isNaN(limit) || limit < 0) {
 						alert("Category limits must be numbers ≥ 0.");
 						return;
@@ -184,12 +219,27 @@ export async function showOnboarding(isRestarting = false) {
 			}
 		}
 
-		await resetForNewMonth({ month, baseBudget, categories });
+		await resetForNewMonth({
+			month,
+			baseBudget,
+			categories,
+		});
+
 		showToast("Saved successfully");
 		modal.remove();
 
-		window.initDashboard?.();
-		window.initTransactions?.();
-		window.initSettings?.();
+		await Promise.allSettled([
+			Promise.resolve(window.initDashboard?.()),
+			Promise.resolve(window.initTransactions?.()),
+			Promise.resolve(window.initSettings?.()),
+		]);
 	});
+}
+
+function escapeHtmlAttr(value) {
+	return String(value)
+		.replaceAll("&", "&amp;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
 }

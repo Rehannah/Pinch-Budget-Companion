@@ -16,8 +16,20 @@ function mountHeader() {
 }
 
 function removeAuthLoadingOverlay() {
-	const loadingOverlay = document.getElementById("auth-loading");
-	if (loadingOverlay) loadingOverlay.remove();
+	document.getElementById("auth-loading")?.remove();
+}
+
+async function initializeCurrentPage() {
+	await Promise.allSettled([
+		Promise.resolve(window.initDashboard?.()),
+		Promise.resolve(window.initTransactions?.()),
+		Promise.resolve(window.initSettings?.()),
+	]);
+
+	await Promise.allSettled([
+		showBudgetWarningBanner(),
+		showUnallocatedBanner(),
+	]);
 }
 
 async function initializeAuthenticatedApp() {
@@ -35,28 +47,18 @@ async function initializeAuthenticatedApp() {
 	const isRestarting = sessionStorage.getItem("showOnboardingAfterRestart");
 	sessionStorage.removeItem("showOnboardingAfterRestart");
 
-	if (isRestarting || !state || !state.meta || !state.meta.month) {
+	if (isRestarting || !state?.meta?.month) {
 		await showOnboarding(isRestarting);
 	}
 
-	await Promise.allSettled([
-		Promise.resolve(window.initDashboard?.()),
-		Promise.resolve(window.initTransactions?.()),
-		Promise.resolve(window.initSettings?.()),
-	]);
-
-	await Promise.allSettled([
-		showBudgetWarningBanner(),
-		showUnallocatedBanner(),
-	]);
+	await initializeCurrentPage();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
 	initSaveStatusIndicator();
 
 	const authTimeoutId = setTimeout(() => {
-		const loadingOverlay = document.getElementById("auth-loading");
-		if (loadingOverlay) {
+		if (document.getElementById("auth-loading")) {
 			console.warn("[App] Auth check timed out after 5s, redirecting to login");
 			window.location.href = "login.html";
 		}
@@ -92,16 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.addEventListener("appStateChanged", async () => {
 	try {
-		await Promise.allSettled([
-			Promise.resolve(window.initDashboard?.()),
-			Promise.resolve(window.initTransactions?.()),
-			Promise.resolve(window.initSettings?.()),
-		]);
-
-		await Promise.allSettled([
-			showBudgetWarningBanner(),
-			showUnallocatedBanner(),
-		]);
+		await initializeCurrentPage();
 	} catch (err) {
 		console.error("appStateChanged handler error", err);
 	}
