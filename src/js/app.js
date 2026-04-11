@@ -99,3 +99,14 @@ window.addEventListener("appStateChanged", async () => {
 		console.error("appStateChanged handler error", err);
 	}
 });
+
+if ("serviceWorker" in navigator) {
+	window.addEventListener("load", async () => {
+		try {
+			await navigator.serviceWorker.register("/sw.js");
+			console.log("[SW] registered");
+		} catch (error) {
+			console.error("[SW] registration failed:", error);
+		}
+	});
+}
