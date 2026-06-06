@@ -47,8 +47,17 @@ async function initializeAuthenticatedApp() {
 	const isRestarting = sessionStorage.getItem("showOnboardingAfterRestart");
 	sessionStorage.removeItem("showOnboardingAfterRestart");
 
-	if (isRestarting || !state?.meta?.month) {
+	// Only show onboarding if there's no month set (first time setup)
+	// Do NOT show it just because the app restarted - that's normal behavior
+	if (!state?.meta?.month) {
+		console.log("[App] No month set - showing onboarding for first-time setup");
 		await showOnboarding(isRestarting);
+	} else if (isRestarting) {
+		// If user explicitly triggers restart from settings, show onboarding
+		console.log("[App] User triggered restart - showing onboarding");
+		await showOnboarding(true);
+	} else {
+		console.log("[App] Month already set, using existing data:", state.meta.month);
 	}
 
 	await initializeCurrentPage();

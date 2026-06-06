@@ -1,15 +1,16 @@
-🧩 Functional Requirements
-1. General
+Core idea of application:
 
-The app must run offline and store all data locally (via browser local storage or LocalForage).
+The application tracks a user's income and expenses across various categories and encourages the user to stick to their budget that they pre-set for the month.
 
-The design must be mobile-first, responsive for desktop.
+Stack:
 
-The app contains three main pages: Dashboard, Transactions, and Settings.
+React Native front end appplication
 
-Data must persist between sessions until the user resets for a new month.
+Firebase data store
 
-2. Initial Setup / Reset
+Firebase authentication
+
+Application is mobile-first, responsive for desktop.
 
 On first load or reset:
 
@@ -20,7 +21,10 @@ User inputs Budget Base Amount (the fixed pool of money to be divided).
 User adds Categories:
 
 - Expense categories: each has a numeric limit.
+
 - Income categories: no limit (income categories do not store or enforce limits).
+
+- Data must persist between sessions until the user resets for a new month.
 
 App initializes the dashboard using these inputs.
 
@@ -72,13 +76,11 @@ Editing the budget base amount.
 
 Enforcement Rules:
 
-- Expense transactions cannot exceed the category's numeric limit.
-- If a transaction would make a category exceed its limit the app must:
-	- Prompt the user to either transfer available funds from another expense category, increase the Budget Base, or cancel the transaction.
-	- Transfers may only be taken from other expense categories and are limited to the donor category's available funds (donor limit minus donor spent).
-	- When a transfer is completed the donor category's limit decreases by the transferred amount and the recipient category's limit increases by the same amount.
+- Expense transactions can exceed the category's numeric limit as the goal is to track spendings and stick to the limit as much as possible.
+
 - If total expenses would exceed the Budget Base, the app prompts the user to increase the Budget Base or cancel the operation.
-- Editing transactions must be validated the same way as adding them: edits that would make a category or the Budget Base exceed their limits are blocked unless the user completes a valid transfer or increases the Budget Base via the provided UI.
+
+- Editing transactions must be validated the same way as adding them: edits that would make the Budget Base exceed their limits are blocked unless the user increases the Budget Base via the provided UI.
 
 4. Transactions Page
 
