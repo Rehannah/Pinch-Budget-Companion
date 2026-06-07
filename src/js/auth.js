@@ -4,6 +4,8 @@ import {
 	signInWithEmailAndPassword,
 	createUserWithEmailAndPassword,
 	signOut,
+	fetchSignInMethodsForEmail,
+	sendPasswordResetEmail,
 } from "firebase/auth";
 import { showModal } from "./components/modal.js";
 
@@ -42,6 +44,42 @@ export async function signUp(email, password) {
 		return { success: true, user: cred.user };
 	} catch (error) {
 		return { success: false, error: error.message };
+	}
+}
+
+export async function checkEmailExists(email) {
+	try {
+		const normalizedEmail = String(email || "")
+			.trim()
+			.toLowerCase();
+		const methods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
+		return {
+			exists: Array.isArray(methods) && methods.length > 0,
+			error: null,
+		};
+	} catch (error) {
+		console.error("[Auth] checkEmailExists error:", error);
+		return {
+			exists: false,
+			error: error.message || String(error),
+		};
+	}
+}
+
+export async function sendPasswordResetEmailToUser(email) {
+	try {
+		const normalizedEmail = String(email || "")
+			.trim()
+			.toLowerCase();
+		await sendPasswordResetEmail(auth, normalizedEmail);
+		return { success: true };
+	} catch (error) {
+		console.error("[Auth] sendPasswordResetEmailToUser error:", error);
+		return {
+			success: false,
+			error: error.message || String(error),
+			code: error.code || null,
+		};
 	}
 }
 

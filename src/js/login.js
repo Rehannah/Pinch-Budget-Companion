@@ -1,4 +1,10 @@
-import { signIn, signUp, initAuthListener } from "./auth.js";
+import {
+	signIn,
+	signUp,
+	initAuthListener,
+	sendPasswordResetEmailToUser,
+} from "./auth.js";
+import { showModal } from "./components/modal.js";
 
 const emailInput = document.getElementById("auth-email");
 const passwordInput = document.getElementById("auth-password");
@@ -16,6 +22,15 @@ function clearError() {
 	if (!errorEl) return;
 	errorEl.textContent = "";
 	errorEl.classList.add("d-none");
+}
+
+function escapeHtml(value) {
+	return String(value)
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
 
 async function handleAuthResult(result) {
@@ -77,6 +92,42 @@ async function handleSignUp() {
 	await handleAuthResult(result);
 }
 
+async function handleForgotPassword() {
+	clearError();
+
+	showModal({
+		title: "Reset password",
+		html: `
+            <div class="mb-3">
+                <label class="form-label small">Email</label>
+                <input id="reset-email" type="email" class="form-control" placeholder="you@example.com" value="${escapeHtml(emailInput.value.trim())}" />
+            </div>
+        `,
+		saveText: "Send reset email",
+		onSave: async () => {
+			const email = document
+				.getElementById("reset-email")
+				?.value.trim()
+				.toLowerCase();
+			if (!email) {
+				alert("Please enter your email.");
+				return false;
+			}
+
+			const result = await sendPasswordResetEmailToUser(email);
+			if (!result.success) {
+				alert("Unable to send reset email: " + result.error);
+				return false;
+			}
+
+			alert(
+				"If an account exists for that email, a password reset message has been sent. Please check your inbox.",
+			);
+			return true;
+		},
+	});
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 	signInBtn?.addEventListener("click", handleSignIn);
 	signUpBtn?.addEventListener("click", handleSignUp);
@@ -87,6 +138,10 @@ document.addEventListener("DOMContentLoaded", () => {
 			if (event.key === "Enter") handleSignIn();
 		});
 	});
+
+	document
+		.getElementById("forgot-password")
+		?.addEventListener("click", handleForgotPassword);
 
 	const unsubscribe = initAuthListener((user) => {
 		if (user) {

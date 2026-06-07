@@ -13,8 +13,10 @@ import { formatDate } from "../utils/date.js";
 let transactionsHandlersBound = false;
 
 export async function initTransactions() {
+	await ensureDayPicker();
 	await populateCategories();
 	await updateBaseMonthLabel();
+	await populateDayPicker();
 	await renderTransactions();
 	updateUnallocatedWarning();
 
@@ -22,6 +24,20 @@ export async function initTransactions() {
 		bindTransactionHandlers();
 		transactionsHandlersBound = true;
 	}
+}
+
+async function ensureDayPicker() {
+	const existing = document.getElementById("transaction-date");
+	if (!existing) return;
+	if (existing.tagName.toLowerCase() === "select") return;
+
+	const select = document.createElement("select");
+	select.id = existing.id;
+	select.className = existing.className;
+	select.style.cssText = existing.style.cssText;
+	select.required = true;
+	select.innerHTML = "";
+	existing.replaceWith(select);
 }
 
 window.initTransactions = initTransactions;
@@ -70,6 +86,7 @@ async function updateBaseMonthLabel() {
 					month: "short",
 					year: "numeric",
 				});
+				await populateDayPicker();
 			} catch {
 				el.textContent = state.meta.month;
 			}
@@ -78,6 +95,25 @@ async function updateBaseMonthLabel() {
 		}
 	} catch {
 		// noop
+	}
+}
+
+async function populateDayPicker() {
+	const select = document.getElementById("transaction-date");
+	if (!select) return;
+
+	const state = await getState();
+	const baseMonth = state.meta?.month || new Date().toISOString().slice(0, 7);
+	const [year, month] = String(baseMonth).split("-");
+	const monthIndex = Math.max(0, Number(month) - 1);
+	const daysInMonth = new Date(Number(year), monthIndex + 1, 0).getDate();
+
+	select.innerHTML = "";
+	for (let day = 1; day <= daysInMonth; day++) {
+		const option = document.createElement("option");
+		option.value = String(day).padStart(2, "0");
+		option.textContent = day;
+		select.appendChild(option);
 	}
 }
 
@@ -275,9 +311,14 @@ async function readTransactionForm() {
 		return null;
 	}
 
+	if (!dayRaw) {
+		alert("Please choose a day for this transaction.");
+		return null;
+	}
+
 	const day = parseInt(dayRaw, 10);
 	if (Number.isNaN(day) || day < 1 || day > 31) {
-		alert("Please enter a valid day (1-31).");
+		alert("Please choose a valid day.");
 		return null;
 	}
 
