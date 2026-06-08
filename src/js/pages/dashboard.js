@@ -8,9 +8,14 @@ import {
 import { showModal } from "../components/modal.js";
 
 let dashboardHandlersBound = false;
+let categoryFilter = "all";
+let categorySearch = "";
+let categorySort = "name";
+let latestDashboardState = null;
 
 export async function initDashboard() {
 	const state = await getState();
+	latestDashboardState = state;
 	renderDashboard(state);
 
 	if (!dashboardHandlersBound) {
@@ -39,6 +44,36 @@ function bindDashboardHandlers() {
 	document
 		.getElementById("category-list")
 		?.addEventListener("click", handleCategoryListClick);
+
+	document
+		.getElementById("category-filter")
+		?.addEventListener("change", async (event) => {
+			categoryFilter = event.target.value || "all";
+			renderCategories(latestDashboardState || (await getState()));
+		});
+
+	document
+		.getElementById("category-sort")
+		?.addEventListener("change", async (event) => {
+			categorySort = event.target.value || "highest";
+			renderCategories(latestDashboardState || (await getState()));
+		});
+
+	document
+		.getElementById("category-search")
+		?.addEventListener("input", async (event) => {
+			categorySearch = event.target.value || "";
+			renderCategories(latestDashboardState || (await getState()));
+		});
+
+	document
+		.getElementById("category-search-reset")
+		?.addEventListener("click", async () => {
+			categorySearch = "";
+			const searchInput = document.getElementById("category-search");
+			if (searchInput) searchInput.value = "";
+			renderCategories(latestDashboardState || (await getState()));
+		});
 
 	document.addEventListener("click", handleIncomeCategoryClick);
 }
@@ -109,18 +144,6 @@ async function showEditBaseModal(state) {
 				return false;
 			}
 
-			const totalAssigned = state.categories
-				.filter((c) => c.type !== "income")
-				.reduce((sum, c) => sum + Number(c.limit || 0), 0);
-
-			if (newBase < totalAssigned) {
-				const confirmed = await confirmBaseBelowAssigned(
-					totalAssigned,
-					newBase,
-				);
-				if (!confirmed) return false;
-			}
-
 			const nextState = {
 				...state,
 				meta: {
@@ -138,37 +161,6 @@ async function showEditBaseModal(state) {
 				console.warn("initTransactions failed after base edit", e);
 			}
 		},
-	});
-}
-
-function confirmBaseBelowAssigned(totalAssigned, newBase) {
-	return new Promise((resolve) => {
-		const diff = totalAssigned - newBase;
-		const html = `
-            <p class="small">
-                The sum of your expense category limits is
-                <strong>$${totalAssigned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>,
-                which exceeds the new base by
-                <strong>$${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>.
-                You should adjust category limits or transaction data. Save anyway?
-            </p>
-        `;
-
-		showModal({
-			title: "Base smaller than assigned limits",
-			html,
-			saveText: "Save anyway",
-			onSave: () => {
-				resolve(true);
-				return true;
-			},
-			onCancel: () => {
-				document
-					.getElementById("category-list")
-					?.scrollIntoView({ behavior: "smooth" });
-				resolve(false);
-			},
-		});
 	});
 }
 
@@ -328,14 +320,6 @@ async function readCategoryForm({ nameId, limitId, typeId }) {
 			return null;
 		}
 
-		const state = await getState();
-		const baseBudget = Number(state.meta.baseBudget || 0);
-
-		if (baseBudget > 0 && limit > baseBudget) {
-			alert("Category limit cannot exceed the Base Budget.");
-			return null;
-		}
-
 		return { name, type, limit };
 	}
 
@@ -361,7 +345,6 @@ function renderDashboard(state) {
 	renderMonthAndBase(state);
 	renderSummaryCards(state);
 	renderSpendProgress(state);
-	renderUnallocatedBanner(state);
 	renderCategories(state);
 }
 
@@ -467,52 +450,59 @@ function renderSpendProgress(state) {
 		spendPercentLabel.textContent = `${spentPercent}% spent`;
 }
 
-function renderUnallocatedBanner(state) {
-	const container = document.querySelector(".container");
-	if (!container) return;
+function getCategoryAmount(category, state) {
+	return state.transactions
+		.filter((t) => t.categoryId === category.id && t.type === category.type)
+		.reduce((sum, t) => sum + Number(t.amount), 0);
+}
 
-	document.getElementById("unallocated-banner")?.remove();
+function filterAndSortCategories(categories, state) {
+	const query = String(categorySearch || "")
+		.trim()
+		.toLowerCase();
 
-	const base = Number(state.meta.baseBudget || 0);
-	const totalAssigned = state.categories
-		.filter((c) => c.type !== "income")
-		.reduce((sum, c) => sum + Number(c.limit || 0), 0);
+	const filtered = categories.filter((category) => {
+		if (categoryFilter === "income") return category.type === "income";
+		if (categoryFilter === "expense") return category.type !== "income";
+		return true;
+	});
 
-	const remaining = Math.max(0, base - totalAssigned);
-	if (!(base > 0 && remaining > 0)) return;
+	const searched = filtered.filter((category) => {
+		if (!query) return true;
+		return String(category.name || "")
+			.toLowerCase()
+			.includes(query);
+	});
 
-	const banner = document.createElement("div");
-	banner.id = "unallocated-banner";
-	banner.className =
-		"alert alert-warning d-flex justify-content-between align-items-center";
-	banner.innerHTML = `
-        <div class="small">
-            You have $${remaining.toLocaleString(undefined, {
-							minimumFractionDigits: 2,
-							maximumFractionDigits: 2,
-						})} of your base budget unallocated.
-        </div>
-        <div>
-            <button id="redistribute-btn" class="btn btn-sm btn-outline-primary me-2">Redistribute</button>
-            <button id="dismiss-unalloc" class="btn btn-sm btn-secondary">Dismiss</button>
-        </div>
-    `;
-
-	const firstSection = container.querySelector("section");
-	if (firstSection?.parentNode) {
-		firstSection.parentNode.insertBefore(banner, firstSection.nextSibling);
+	if (categorySort === "name") {
+		return searched.sort((a, b) =>
+			String(a.name || "").localeCompare(String(b.name || "")),
+		);
 	}
 
-	banner
-		.querySelector("#dismiss-unalloc")
-		?.addEventListener("click", () => banner.remove());
+	const withAmounts = searched
+		.map((category) => ({
+			category,
+			amount: getCategoryAmount(category, state),
+		}))
+		.sort((a, b) => {
+			if (categorySort === "lowest") {
+				return (
+					a.amount - b.amount ||
+					String(a.category.name || "").localeCompare(
+						String(b.category.name || ""),
+					)
+				);
+			}
+			return (
+				b.amount - a.amount ||
+				String(a.category.name || "").localeCompare(
+					String(b.category.name || ""),
+				)
+			);
+		});
 
-	banner.querySelector("#redistribute-btn")?.addEventListener("click", () => {
-		const expenseCategories = state.categories.filter(
-			(c) => c.type !== "income",
-		);
-		showRedistributeModal(remaining, expenseCategories);
-	});
+	return withAmounts.map((item) => item.category);
 }
 
 function renderCategories(state) {
@@ -523,8 +513,19 @@ function renderCategories(state) {
 	document.getElementById("income-category-list")?.remove();
 	removeExpenseHeader();
 
-	const incomeCategories = state.categories.filter((c) => c.type === "income");
-	const expenseCategories = state.categories.filter((c) => c.type !== "income");
+	const incomeCategories = filterAndSortCategories(
+		(state.categories || []).filter((c) => c.type === "income"),
+		state,
+	);
+	const expenseCategories = filterAndSortCategories(
+		(state.categories || []).filter((c) => c.type !== "income"),
+		state,
+	);
+
+	if (!incomeCategories.length && !expenseCategories.length) {
+		categoryList.innerHTML = `<li class="text-muted py-4">No categories match your filter or search.</li>`;
+		return;
+	}
 
 	if (incomeCategories.length) {
 		renderIncomeCategories(incomeCategories, state);
@@ -591,9 +592,9 @@ function renderExpenseCategories(categories, state, categoryList) {
 
 		const limit =
 			typeof category.limit === "number" ? Number(category.limit) : 0;
-		const remaining = Math.max(0, limit - spent);
-		const percent =
-			limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
+		const overLimit = Math.max(0, spent - limit);
+		const overPercent = limit > 0 ? Math.round((overLimit / limit) * 100) : 0;
+		const percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
 
 		const li = document.createElement("li");
 		li.className = "py-3";
@@ -606,24 +607,20 @@ function renderExpenseCategories(categories, state, categoryList) {
 													minimumFractionDigits: 2,
 													maximumFractionDigits: 2,
 												})}
-                        | Remaining: $${remaining.toLocaleString(undefined, {
-													minimumFractionDigits: 2,
-													maximumFractionDigits: 2,
-												})}
+                        ${limit > 0 ? `| Limit: $${limit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
                     </div>
                 </div>
-                <div class="small">
-                    <div class="fw-semibold">
-                        $${limit.toLocaleString(undefined, {
-													minimumFractionDigits: 2,
-													maximumFractionDigits: 2,
-												})} limit
-                    </div>
+                <div class="small text-end">
+                    ${overLimit > 0 ? `<div class="fw-semibold text-danger">$${overLimit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over (${overPercent}%)</div>` : `<div class="fw-semibold text-muted">On track</div>`}
                 </div>
             </div>
-            <div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
-                <div class="h-100 ${percent > 100 ? "bg-danger" : "bg-warning"}" style="width:${Math.min(100, percent)}%"></div>
-            </div>
+            ${
+							limit > 0
+								? `<div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
+                <div class="h-100 ${percent > 100 ? "bg-danger" : "bg-success"}" style="width:${Math.min(100, percent)}%"></div>
+            </div>`
+								: ""
+						}
             <div class="d-flex align-items-center gap-2 mt-2">
                 <button data-action="edit" data-id="${category.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button>
                 <button data-action="delete" data-id="${category.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>

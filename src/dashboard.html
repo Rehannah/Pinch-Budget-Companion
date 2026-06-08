@@ -82,6 +82,46 @@
 							</button>
 						</div>
 					</div>
+					<div
+						id="category-controls"
+						class="row row-cols-1 row-cols-md-3 g-2 align-items-center mt-3"
+					>
+						<div class="col">
+							<div class="input-group input-group-sm">
+								<label class="input-group-text" for="category-filter"
+									>Filter</label
+								>
+								<select id="category-filter" class="form-select">
+									<option value="all">All</option>
+									<option value="income">Income</option>
+									<option value="expense">Expense</option>
+								</select>
+							</div>
+						</div>
+						<div class="col">
+							<div class="input-group input-group-sm">
+								<label class="input-group-text" for="category-sort">Sort</label>
+								<select id="category-sort" class="form-select">
+									<option value="name">Name</option>
+									<option value="highest">Highest to lowest</option>
+									<option value="lowest">Lowest to highest</option>
+								</select>
+							</div>
+						</div>
+						<div class="col">
+							<div class="input-group input-group-sm">
+								<label class="input-group-text" for="category-search"
+									>Search</label
+								>
+								<input
+									id="category-search"
+									type="search"
+									class="form-control"
+									placeholder="Search categories"
+								/>
+							</div>
+						</div>
+					</div>
 					<ul id="category-list" class="mt-3 list-unstyled"></ul>
 				</section>
 			</div>
