@@ -10,6 +10,8 @@ const Header = () => {
             <nav class="d-none d-sm-flex gap-3" aria-label="Main navigation">
               <a data-nav href="dashboard.html" class="text-muted text-decoration-none">Dashboard</a>
               <a data-nav href="transactions.html" class="text-muted text-decoration-none">Transactions</a>
+			  <a data-nav href="debts.html" class="text-muted text-decoration-none">Debts</a>
+			  <a data-nav href="investments.html" class="text-muted text-decoration-none">Investments</a>
               <a data-nav href="settings.html" class="text-muted text-decoration-none">Settings</a>
             </nav>
             <div class="d-flex align-items-center gap-2 border-start ps-3">
@@ -24,6 +26,8 @@ const Header = () => {
         <div class="container d-flex justify-content-around align-items-center p-2">
           <a data-nav href="dashboard.html" class="p-3 text-center small text-decoration-none">Dashboard</a>
           <a data-nav href="transactions.html" class="p-3 text-center small text-decoration-none">Transactions</a>
+		  <a data-nav href="debts.html" class="p-3 text-center small text-decoration-none">Debts</a>
+		  <a data-nav href="investments.html" class="p-3 text-center small text-decoration-none">Investments</a>
           <a data-nav href="settings.html" class="p-3 text-center small text-decoration-none">Settings</a>
         </div>
       </nav>

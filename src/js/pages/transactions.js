@@ -4,11 +4,12 @@ import {
 	addCategory,
 	editTransaction,
 	deleteTransaction,
-	transferBetweenCategories,
 	saveState,
 } from "../cloud-storage.js";
 import { showModal } from "../components/modal.js";
+import { showToast } from "../components/toast.js";
 import { formatDate } from "../utils/date.js";
+import { getDebtCategoryKind } from "../features/debt-categories.js";
 
 let transactionsHandlersBound = false;
 
@@ -18,7 +19,7 @@ export async function initTransactions() {
 	await updateBaseMonthLabel();
 	await populateDayPicker();
 	await renderTransactions();
-	updateUnallocatedWarning();
+	updateBankPoolControl();
 
 	if (!transactionsHandlersBound) {
 		bindTransactionHandlers();
@@ -47,7 +48,7 @@ function bindTransactionHandlers() {
 		.getElementById("transaction-type")
 		?.addEventListener("change", async () => {
 			await populateCategories();
-			await updateUnallocatedWarning();
+			updateBankPoolControl();
 		});
 
 	document
@@ -55,21 +56,33 @@ function bindTransactionHandlers() {
 		?.addEventListener("change", handleCategorySelectorChange);
 
 	document
-		.getElementById("transaction-amount")
-		?.addEventListener("input", updateUnallocatedWarning);
-
-	document
 		.getElementById("transaction-form")
 		?.addEventListener("submit", handleTransactionSubmit);
 
 	document.getElementById("clear-form")?.addEventListener("click", () => {
 		document.getElementById("transaction-form")?.reset();
-		updateUnallocatedWarning();
+		updateBankPoolControl();
 	});
+
+	document
+		.getElementById("transaction-bank-pool")
+		?.addEventListener("change", updateBankPoolControl);
 
 	document
 		.getElementById("transactions")
 		?.addEventListener("click", handleTransactionListClick);
+}
+
+function updateBankPoolControl() {
+	const type = document.getElementById("transaction-type")?.value || "expense";
+	const wrapper = document.getElementById("transaction-bank-pool-wrapper");
+	const checkbox = document.getElementById("transaction-bank-pool");
+	if (!wrapper || !checkbox) return;
+
+	const isExpense = type === "expense";
+	wrapper.classList.toggle("d-none", !isExpense);
+	checkbox.disabled = !isExpense;
+	if (!isExpense) checkbox.checked = false;
 }
 
 async function updateBaseMonthLabel() {
@@ -229,13 +242,6 @@ async function readCategoryForm({ nameId, limitId, typeId }) {
 			return null;
 		}
 
-		const state = await getState();
-		const baseBudget = Number(state.meta.baseBudget || 0);
-		if (baseBudget > 0 && limit > baseBudget) {
-			alert("Category limit cannot exceed the Base Budget.");
-			return null;
-		}
-
 		return { name, type, limit };
 	}
 
@@ -259,7 +265,6 @@ function wireCategoryTypeToggle(typeId, limitId) {
 
 async function handleTransactionSubmit(event) {
 	event.preventDefault();
-	await updateUnallocatedWarning();
 
 	const tx = await readTransactionForm();
 	if (!tx) return;
@@ -280,21 +285,29 @@ async function handleTransactionSubmit(event) {
 	}
 
 	tx.categoryId = categoryId;
+	const state = await getState();
+	if (!validateDebtPerson(tx, state)) return;
+	const categoryWarning = getCategoryLimitWarning(tx, state);
 
-	if (tx.type === "expense") {
-		const okCategory = await handleExpenseCategoryLimitIfNeeded(tx);
-		if (!okCategory) return;
-
+	if (tx.type === "expense" && !tx.bankPool) {
 		const okBase = await handleBaseBudgetOverflowIfNeeded(tx);
 		if (!okBase) return;
 	}
 
-	await addTransaction(tx);
+	try {
+		await addTransaction(tx);
+	} catch (error) {
+		showToast(`Transaction was not saved: ${error.message || error}`, {
+			timeout: 8000,
+		});
+		return;
+	}
+	if (categoryWarning) showToast(categoryWarning, { timeout: 5000 });
 
 	document.getElementById("transaction-form")?.reset();
 	await populateCategories();
+	updateBankPoolControl();
 	await renderTransactions();
-	await updateUnallocatedWarning();
 }
 
 async function readTransactionForm() {
@@ -305,6 +318,9 @@ async function readTransactionForm() {
 	const description = document.getElementById("transaction-desc")?.value || "";
 	const amountRaw = document.getElementById("transaction-amount")?.value || "";
 	const amount = Number(amountRaw);
+	const bankPool =
+		type === "expense" &&
+		!!document.getElementById("transaction-bank-pool")?.checked;
 
 	if (Number.isNaN(amount) || amount <= 0) {
 		alert("Please enter an amount greater than 0.");
@@ -333,194 +349,73 @@ async function readTransactionForm() {
 		date,
 		description,
 		amount,
+		bankPool,
 	};
 }
 
-async function handleExpenseCategoryLimitIfNeeded(tx) {
-	const state = await getState();
-	const category = state.categories.find((c) => c.id === tx.categoryId);
-	if (!category || typeof category.limit !== "number") return true;
+function validateDebtPerson(transaction, state) {
+	const category = state.categories.find(
+		(item) => item.id === transaction.categoryId,
+	);
+	if (!getDebtCategoryKind(category?.name)) return true;
 
-	const spent = state.transactions
-		.filter(
-			(transaction) =>
-				transaction.categoryId === tx.categoryId &&
-				transaction.type === "expense",
-		)
-		.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-
-	const wouldBe = spent + tx.amount;
-	if (wouldBe <= category.limit) return true;
-
-	const otherCategories = state.categories
-		.filter((c) => c.id !== category.id && c.type !== "income")
-		.map((c) => {
-			const limit = Number(c.limit || 0);
-			const spentInCategory = state.transactions
-				.filter(
-					(transaction) =>
-						transaction.categoryId === c.id && transaction.type === "expense",
-				)
-				.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-
-			return {
-				...c,
-				available: Math.max(0, limit - spentInCategory),
-			};
-		});
-
-	return await showCategoryExceededModal({
-		category,
-		wouldBe,
-		amount: tx.amount,
-		otherCategories,
-	});
+	if (!/\[[^\]]+\]|\{[^}]+\}/.test(transaction.description || "")) {
+		alert(
+			"Add the person's name in square brackets in the description, for example [Sam].",
+		);
+		return false;
+	}
+	return true;
 }
 
-function showCategoryExceededModal({
-	category,
-	wouldBe,
-	amount,
-	otherCategories,
-}) {
-	return new Promise((resolve) => {
-		const html = `
-            <div class="mb-2">
-                <p class="small">
-                    Category <strong>${escapeHtml(category.name)}</strong> limit:
-                    $${Number(category.limit).toLocaleString(undefined, {
-											minimumFractionDigits: 2,
-											maximumFractionDigits: 2,
-										})}.
-                    This transaction would make spent
-                    $${wouldBe.toLocaleString(undefined, {
-											minimumFractionDigits: 2,
-											maximumFractionDigits: 2,
-										})}.
-                </p>
+function getCategoryLimitWarning(transaction, state) {
+	if (
+		transaction.type !== "expense" ||
+		transaction.bankPool ||
+		!isInCurrentMonth(transaction, state)
+	) {
+		return "";
+	}
 
-                <label class="form-label small">Choose action</label>
-                <select id="transfer-action" class="form-select">
-                    <option value="transfer">Transfer from another category</option>
-                    <option value="increase">Increase base budget</option>
-                    <option value="cancel">Cancel</option>
-                </select>
+	const category = state.categories.find(
+		(item) => item.id === transaction.categoryId,
+	);
+	if (!category || !Number.isFinite(Number(category.limit))) return "";
 
-                <div id="transfer-extra" class="mt-2"></div>
-            </div>
-        `;
+	const spent = (state.transactions || [])
+		.filter(
+			(item) =>
+				item.id !== transaction.id &&
+				item.categoryId === category.id &&
+				item.type === "expense" &&
+				!item.bankPool &&
+				isInCurrentMonth(item, state),
+		)
+		.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+	const overage =
+		spent + Number(transaction.amount || 0) - Number(category.limit);
+	if (overage <= 0) return "";
 
-		showModal({
-			title: "Category limit exceeded",
-			html,
-			saveText: "Proceed",
-			onSave: async () => {
-				const action = document.getElementById("transfer-action")?.value;
-
-				if (action === "cancel") {
-					resolve(false);
-					return true;
-				}
-
-				if (action === "increase") {
-					const increaseBy = parseFloat(
-						document.getElementById("transfer-extra-input")?.value || "0",
-					);
-					if (increaseBy > 0) {
-						const state = await getState();
-						state.meta.baseBudget =
-							Number(state.meta.baseBudget || 0) + increaseBy;
-						await saveState(state);
-					}
-					resolve(true);
-					return true;
-				}
-
-				if (action === "transfer") {
-					const sourceId = document.getElementById("transfer-source")?.value;
-					const transferAmount = parseFloat(
-						document.getElementById("transfer-extra-input")?.value || "0",
-					);
-
-					if (!sourceId || transferAmount <= 0) {
-						alert("Please select a source category and provide an amount > 0.");
-						return false;
-					}
-
-					try {
-						await transferBetweenCategories(
-							sourceId,
-							category.id,
-							transferAmount,
-						);
-						resolve(true);
-						return true;
-					} catch (error) {
-						alert("Transfer failed: " + error.message);
-						return false;
-					}
-				}
-
-				resolve(false);
-				return true;
-			},
-			onCancel: () => resolve(false),
-		});
-
-		setTimeout(() => {
-			const actionEl = document.getElementById("transfer-action");
-			const extra = document.getElementById("transfer-extra");
-			if (!actionEl || !extra) return;
-
-			function renderExtra() {
-				if (actionEl.value === "transfer") {
-					const options = otherCategories
-						.map(
-							(c) =>
-								`<option value="${c.id}" ${c.available <= 0 ? "disabled" : ""}>${escapeHtml(c.name)} (available $${c.available.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</option>`,
-						)
-						.join("");
-
-					const firstAvailable = otherCategories.find((c) => c.available > 0);
-					const defaultAmount = firstAvailable
-						? Math.min(firstAvailable.available, amount)
-						: amount;
-
-					extra.innerHTML = `
-                        <label class="form-label small">Source category</label>
-                        <select id="transfer-source" class="form-select">${options}</select>
-                        <label class="form-label small mt-2">Amount to transfer</label>
-                        <input id="transfer-extra-input" type="number" class="form-control" value="${defaultAmount}" />
-                    `;
-
-					if (firstAvailable) {
-						document.getElementById("transfer-source").value =
-							firstAvailable.id;
-					}
-				} else if (actionEl.value === "increase") {
-					extra.innerHTML = `
-                        <label class="form-label small">Increase base by</label>
-                        <input id="transfer-extra-input" type="number" class="form-control" value="${amount}" />
-                    `;
-				} else {
-					extra.innerHTML = "";
-				}
-			}
-
-			actionEl.addEventListener("change", renderExtra);
-			renderExtra();
-		}, 0);
-	});
+	const overPercent =
+		Number(category.limit) > 0
+			? ` (${Math.round((overage / Number(category.limit)) * 100)}% over)`
+			: "";
+	return `${category.name} will be $${overage.toFixed(2)} over its soft limit${overPercent}; transaction saved.`;
 }
 
 async function handleBaseBudgetOverflowIfNeeded(tx) {
 	const state = await getState();
 	const totalExpense = state.transactions
-		.filter((transaction) => transaction.type === "expense")
+		.filter(
+			(transaction) =>
+				transaction.type === "expense" &&
+				!transaction.bankPool &&
+				isInCurrentMonth(transaction, state),
+		)
 		.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
 
 	const baseBudget = Number(state.meta.baseBudget || 0);
-	if (!(baseBudget > 0 && totalExpense + tx.amount > baseBudget)) {
+	if (totalExpense + tx.amount <= baseBudget) {
 		return true;
 	}
 
@@ -575,11 +470,17 @@ async function handleBaseBudgetOverflowIfNeeded(tx) {
 					document.getElementById("base-extra-input")?.value || "0",
 				);
 
-				if (increaseBy > 0) {
-					const nextState = await getState();
-					nextState.meta.baseBudget =
-						Number(nextState.meta.baseBudget || 0) + increaseBy;
-					await saveState(nextState);
+				if (!Number.isFinite(increaseBy) || increaseBy + 0.009 < excess) {
+					alert(`Increase the Budget Base by at least $${excess.toFixed(2)}.`);
+					return false;
+				}
+
+				const nextState = await getState();
+				nextState.meta.baseBudget =
+					Number(nextState.meta.baseBudget || 0) + increaseBy;
+				if (!(await saveState(nextState))) {
+					alert("Could not save the Budget Base increase. Try again.");
+					return false;
 				}
 
 				resolve(true);
@@ -610,72 +511,11 @@ async function handleBaseBudgetOverflowIfNeeded(tx) {
 	});
 }
 
-async function updateUnallocatedWarning() {
-	try {
-		const state = await getState();
-		const base = Number(state.meta.baseBudget || 0);
-		const expenseCategories = state.categories.filter(
-			(c) => c.type !== "income",
-		);
-		const totalAssigned = expenseCategories.reduce(
-			(sum, category) => sum + Number(category.limit || 0),
-			0,
-		);
-		const remaining = Math.max(0, base - totalAssigned);
-
-		const type =
-			document.getElementById("transaction-type")?.value || "expense";
-		const existingBanner = document.getElementById(
-			"unallocated-banner-transactions",
-		);
-
-		if (base > 0 && remaining > 0 && type === "expense") {
-			if (!existingBanner) {
-				const container = document.querySelector(".container");
-				const banner = document.createElement("div");
-				banner.id = "unallocated-banner-transactions";
-				banner.className =
-					"alert alert-warning d-flex justify-content-between align-items-center";
-				banner.innerHTML = `
-                    <div class="small">
-                        You have $${remaining.toLocaleString(undefined, {
-													minimumFractionDigits: 2,
-													maximumFractionDigits: 2,
-												})} of your base budget unallocated.
-                    </div>
-                    <div>
-                        <button id="dismiss-unalloc-tx" class="btn btn-sm btn-secondary">Dismiss</button>
-                    </div>
-                `;
-
-				const firstSection = container?.querySelector("section");
-				if (firstSection?.parentNode) {
-					firstSection.parentNode.insertBefore(banner, firstSection);
-				} else if (container) {
-					container.insertBefore(banner, container.firstChild);
-				}
-
-				banner
-					.querySelector("#dismiss-unalloc-tx")
-					?.addEventListener("click", () => banner.remove());
-			} else {
-				const textDiv = existingBanner.querySelector("div");
-				if (textDiv) {
-					textDiv.textContent = `You have $${remaining.toLocaleString(
-						undefined,
-						{
-							minimumFractionDigits: 2,
-							maximumFractionDigits: 2,
-						},
-					)} of your base budget unallocated.`;
-				}
-			}
-		} else {
-			existingBanner?.remove();
-		}
-	} catch {
-		// noop
-	}
+function isInCurrentMonth(transaction, state) {
+	return (
+		!state.meta?.month ||
+		String(transaction.date || "").startsWith(`${state.meta.month}-`)
+	);
 }
 
 async function renderTransactions() {
@@ -714,6 +554,7 @@ async function renderTransactions() {
                 </div>
                 <div class="small text-muted">
                     ${escapeHtml(category ? category.name : "Uncategorized")}
+					${transaction.bankPool ? " · Bank pool" : ""}
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2">
@@ -739,7 +580,14 @@ async function handleTransactionListClick(event) {
 	if (deleteBtn) {
 		const id = deleteBtn.getAttribute("data-id");
 		if (confirm("Delete this transaction?")) {
-			await deleteTransaction(id);
+			try {
+				await deleteTransaction(id);
+			} catch (error) {
+				showToast(`Transaction was not deleted: ${error.message || error}`, {
+					timeout: 8000,
+				});
+				return;
+			}
 			await renderTransactions();
 		}
 		return;
@@ -803,6 +651,11 @@ async function openEditTransactionModal(id) {
                 </div>
             </div>
 
+			<div id="edit-t-bank-pool-wrapper" class="form-check mb-3 ${transaction.type === "income" ? "d-none" : ""}">
+				<input id="edit-t-bank-pool" class="form-check-input" type="checkbox" ${transaction.bankPool ? "checked" : ""} />
+				<label class="form-check-label small" for="edit-t-bank-pool">Bank pool expense</label>
+			</div>
+
             <label class="form-label small">Day</label>
             <div class="d-flex gap-2 align-items-center">
                 <input id="edit-t-day" type="number" min="1" max="31" class="form-control" style="max-width:8rem" value="${dayValue}" />
@@ -819,16 +672,26 @@ async function openEditTransactionModal(id) {
 			const payload = await readEditTransactionForm(transaction.id);
 			if (!payload) return false;
 
-			if (payload.type === "expense") {
-				const categoryOk = await handleExpenseLimitForEdit(payload);
-				if (!categoryOk) return false;
+			const currentState = await getState();
+			if (!validateDebtPerson(payload, currentState)) return false;
+			const categoryWarning = getCategoryLimitWarning(payload, currentState);
 
+			if (payload.type === "expense" && !payload.bankPool) {
 				const baseOk = await handleBaseOverflowForEdit(payload);
 				if (!baseOk) return false;
 			}
 
-			await editTransaction(transaction.id, payload);
+			try {
+				await editTransaction(transaction.id, payload);
+			} catch (error) {
+				showToast(`Transaction was not saved: ${error.message || error}`, {
+					timeout: 8000,
+				});
+				return false;
+			}
+			if (categoryWarning) showToast(categoryWarning, { timeout: 5000 });
 			await renderTransactions();
+			await window.initDashboard?.();
 		},
 	});
 
@@ -853,8 +716,23 @@ async function openEditTransactionModal(id) {
 			});
 		}
 
-		typeSelect?.addEventListener("change", fillCategoryOptions);
+		function updateEditBankPoolControl() {
+			const wrapper = document.getElementById("edit-t-bank-pool-wrapper");
+			const checkbox = document.getElementById("edit-t-bank-pool");
+			const isExpense = typeSelect?.value === "expense";
+			wrapper?.classList.toggle("d-none", !isExpense);
+			if (checkbox) {
+				checkbox.disabled = !isExpense;
+				if (!isExpense) checkbox.checked = false;
+			}
+		}
+
+		typeSelect?.addEventListener("change", async () => {
+			await fillCategoryOptions();
+			updateEditBankPoolControl();
+		});
 		await fillCategoryOptions();
+		updateEditBankPoolControl();
 	}, 0);
 }
 
@@ -866,6 +744,9 @@ async function readEditTransactionForm(transactionId) {
 	const type = document.getElementById("edit-t-type")?.value || "expense";
 	const categoryId = document.getElementById("edit-t-category")?.value || "";
 	const day = parseInt(document.getElementById("edit-t-day")?.value || "", 10);
+	const bankPool =
+		type === "expense" &&
+		!!document.getElementById("edit-t-bank-pool")?.checked;
 
 	if (Number.isNaN(amount) || amount <= 0) {
 		alert("Amount must be a number greater than 0.");
@@ -888,49 +769,8 @@ async function readEditTransactionForm(transactionId) {
 		date,
 		type,
 		categoryId,
+		bankPool,
 	};
-}
-
-async function handleExpenseLimitForEdit(payload) {
-	const state = await getState();
-	const category = state.categories.find((c) => c.id === payload.categoryId);
-	if (!category || typeof category.limit !== "number") return true;
-
-	const spentExcluding = state.transactions
-		.filter(
-			(transaction) =>
-				transaction.categoryId === payload.categoryId &&
-				transaction.type === "expense" &&
-				transaction.id !== payload.id,
-		)
-		.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-
-	const wouldBe = spentExcluding + payload.amount;
-	if (wouldBe <= category.limit) return true;
-
-	const otherCategories = state.categories
-		.filter((c) => c.id !== category.id && c.type !== "income")
-		.map((c) => {
-			const limit = Number(c.limit || 0);
-			const spent = state.transactions
-				.filter(
-					(transaction) =>
-						transaction.categoryId === c.id && transaction.type === "expense",
-				)
-				.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-
-			return {
-				...c,
-				available: Math.max(0, limit - spent),
-			};
-		});
-
-	return await showCategoryExceededModal({
-		category,
-		wouldBe,
-		amount: payload.amount,
-		otherCategories,
-	});
 }
 
 async function handleBaseOverflowForEdit(payload) {
@@ -938,17 +778,15 @@ async function handleBaseOverflowForEdit(payload) {
 	const totalExpenseExcludingEdited = state.transactions
 		.filter(
 			(transaction) =>
-				transaction.type === "expense" && transaction.id !== payload.id,
+				transaction.type === "expense" &&
+				!transaction.bankPool &&
+				transaction.id !== payload.id &&
+				isInCurrentMonth(transaction, state),
 		)
 		.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
 
 	const baseBudget = Number(state.meta.baseBudget || 0);
-	if (
-		!(
-			baseBudget > 0 &&
-			totalExpenseExcludingEdited + payload.amount > baseBudget
-		)
-	) {
+	if (totalExpenseExcludingEdited + payload.amount <= baseBudget) {
 		return true;
 	}
 
@@ -1003,11 +841,17 @@ async function handleBaseOverflowForEdit(payload) {
 					document.getElementById("base-extra-input")?.value || "0",
 				);
 
-				if (increaseBy > 0) {
-					const nextState = await getState();
-					nextState.meta.baseBudget =
-						Number(nextState.meta.baseBudget || 0) + increaseBy;
-					await saveState(nextState);
+				if (!Number.isFinite(increaseBy) || increaseBy + 0.009 < excess) {
+					alert(`Increase the Budget Base by at least $${excess.toFixed(2)}.`);
+					return false;
+				}
+
+				const nextState = await getState();
+				nextState.meta.baseBudget =
+					Number(nextState.meta.baseBudget || 0) + increaseBy;
+				if (!(await saveState(nextState))) {
+					alert("Could not save the Budget Base increase. Try again.");
+					return false;
 				}
 
 				resolve(true);

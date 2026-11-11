@@ -2,10 +2,6 @@ import Header, { initHeader } from "./components/header.js";
 import { initAuthListener } from "./auth.js";
 import { initCloudStorage } from "./cloud-storage.js";
 import { showOnboarding } from "./features/onboarding.js";
-import {
-	showBudgetWarningBanner,
-	showUnallocatedBanner,
-} from "./components/budget-banners.js";
 import { initSaveStatusIndicator } from "./save-status.js";
 
 function mountHeader() {
@@ -23,12 +19,9 @@ async function initializeCurrentPage() {
 	await Promise.allSettled([
 		Promise.resolve(window.initDashboard?.()),
 		Promise.resolve(window.initTransactions?.()),
+		Promise.resolve(window.initDebts?.()),
+		Promise.resolve(window.initInvestments?.()),
 		Promise.resolve(window.initSettings?.()),
-	]);
-
-	await Promise.allSettled([
-		showBudgetWarningBanner(),
-		showUnallocatedBanner(),
 	]);
 }
 
@@ -57,7 +50,10 @@ async function initializeAuthenticatedApp() {
 		console.log("[App] User triggered restart - showing onboarding");
 		await showOnboarding(true);
 	} else {
-		console.log("[App] Month already set, using existing data:", state.meta.month);
+		console.log(
+			"[App] Month already set, using existing data:",
+			state.meta.month,
+		);
 	}
 
 	await initializeCurrentPage();

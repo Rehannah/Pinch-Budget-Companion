@@ -1,13 +1,11 @@
 import {
 	getState,
 	resetForNewMonth,
-	clearAllData,
 	exportData,
 	importData,
 } from "../cloud-storage.js";
 import { showModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
-import { clearServiceWorkersAndCaches } from "../utils/browser-storage.js";
 
 let settingsHandlersBound = false;
 
@@ -60,7 +58,7 @@ async function openRestartModal() {
         </div>
 
         <div class="small text-muted mb-3">
-            If you do not keep categories, all categories and transactions will be cleared and the app will start fresh.
+			Transactions are cleared for the new month. Categories and limits are optional to carry forward. Investment settings and debt balances are retained.
         </div>
     `;
 
@@ -71,10 +69,6 @@ async function openRestartModal() {
 		onSave: async () => {
 			const form = readRestartForm();
 			if (!form) return false;
-
-			if (form.clearAll) {
-				return await handleFullReset();
-			}
 
 			return await handleMonthlyRestart(form);
 		},
@@ -88,7 +82,6 @@ function readRestartForm() {
 	);
 	const keepCategories =
 		!!document.getElementById("restart-keep-cats")?.checked;
-	const clearAll = !!document.getElementById("restart-clear-all")?.checked;
 
 	if (!month) {
 		alert("Please choose a month to continue.");
@@ -104,68 +97,11 @@ function readRestartForm() {
 		month,
 		baseBudget,
 		keepCategories,
-		clearAll,
 	};
-}
-
-async function handleFullReset() {
-	const confirmed = confirm(
-		"This will delete ALL app data (including month, base, categories, and transactions). Are you sure?",
-	);
-
-	if (!confirmed) return false;
-
-	await clearAllData();
-	await clearServiceWorkersAndCaches();
-
-	showToast("All app data cleared. Starting fresh.");
-
-	setTimeout(() => {
-		window.location.href = "dashboard.html";
-	}, 500);
-
-	return true;
 }
 
 async function handleMonthlyRestart({ month, baseBudget, keepCategories }) {
 	const state = await getState();
-
-	const categoriesToKeep = keepCategories
-		? state.categories.map((category) => {
-				const baseCategory = {
-					name: category.name,
-					type: category.type,
-				};
-
-				if (category.type !== "income") {
-					baseCategory.limit = category.limit;
-				}
-
-				return baseCategory;
-			})
-		: [];
-
-	const expenseCategories = categoriesToKeep.filter(
-		(category) => category.type !== "income",
-	);
-
-	const totalAssigned = expenseCategories.reduce(
-		(sum, category) => sum + Number(category.limit || 0),
-		0,
-	);
-
-	if (totalAssigned > baseBudget) {
-		alert(
-			"One or more category limits exceed the Base Budget. Please adjust limits before restarting.",
-		);
-		return false;
-	}
-
-	const remaining = Math.max(0, baseBudget - totalAssigned);
-	if (remaining > 0 && expenseCategories.length > 0) {
-		await showUnallocatedBudgetInfo(remaining);
-	}
-
 	const categoriesToPass = keepCategories
 		? state.categories.map((category) => {
 				const copy = {
@@ -194,36 +130,6 @@ async function handleMonthlyRestart({ month, baseBudget, keepCategories }) {
 	}, 400);
 
 	return true;
-}
-
-function showUnallocatedBudgetInfo(remaining) {
-	return new Promise((resolve) => {
-		const html = `
-            <div class="mb-2">
-                <p class="small">
-                    You have $${remaining.toLocaleString(undefined, {
-											minimumFractionDigits: 2,
-											maximumFractionDigits: 2,
-										})} unallocated from your base budget.
-                    You can manually allocate this later from Settings or the Dashboard.
-                </p>
-            </div>
-        `;
-
-		showModal({
-			title: "Unallocated budget",
-			html,
-			saveText: "OK",
-			onSave: () => {
-				resolve(true);
-				return true;
-			},
-			onCancel: () => {
-				resolve(true);
-				return true;
-			},
-		});
-	});
 }
 
 async function handleExportData() {

@@ -81,9 +81,11 @@ main {
 	}
 
 	.bottom-nav a {
-		flex: 1 1 33%;
+		flex: 1 1 20%;
 		min-width: 0;
 		text-align: center;
+		padding: 0.6rem 0.1rem !important;
+		font-size: 0.7rem;
 	}
 
 	header .d-flex {

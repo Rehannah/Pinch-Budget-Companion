@@ -14,6 +14,8 @@ export default defineConfig({
 				login: resolve(__dirname, "src/login.html"),
 				settings: resolve(__dirname, "src/settings.html"),
 				transactions: resolve(__dirname, "src/transactions.html"),
+				debts: resolve(__dirname, "src/debts.html"),
+				investments: resolve(__dirname, "src/investments.html"),
 				404: resolve(__dirname, "src/404.html"),
 			},
 		},

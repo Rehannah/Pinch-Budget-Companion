@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Investments — Pinch</title>
+		<link rel="manifest" href="/manifest.json" />
+		<link rel="icon" type="image/png" href="/icons/icon-192.png" />
+		<link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+		<meta name="theme-color" content="#9b7cff" />
+		<link
+			href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="css/styles.css" />
+		<link rel="stylesheet" href="css/components.css" />
+		<script type="module" src="js/pages/investments.js" defer></script>
+	</head>
+	<body>
+		<div
+			id="auth-loading"
+			class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white"
+			style="z-index: 9999"
+		>
+			<div class="text-center">
+				<div class="spinner-border text-primary mb-3" role="status">
+					<span class="visually-hidden">Loading...</span>
+				</div>
+				<p class="text-muted">Checking authentication...</p>
+			</div>
+		</div>
+		<div id="app-header"></div>
+		<main class="min-vh-100 p-4 bg-surface">
+			<div class="container">
+				<section class="bg-white rounded shadow p-4 mb-4">
+					<div class="d-flex justify-content-between align-items-start gap-3">
+						<div>
+							<h1 class="h5 fw-semibold mb-1">Investments</h1>
+							<p class="small text-muted mb-3">
+								Unit Trust TT Income Fund (TTIF)
+							</p>
+						</div>
+						<button
+							id="edit-investment"
+							class="btn btn-outline-primary btn-sm"
+							type="button"
+						>
+							Edit
+						</button>
+					</div>
+					<dl class="row mb-0">
+						<div class="col-12 col-sm-4">
+							<dt class="small text-muted fw-normal">Current principal</dt>
+							<dd id="investment-principal-summary" class="h5 fw-semibold mb-3">
+								TT$0.00
+							</dd>
+						</div>
+						<div class="col-6 col-sm-4">
+							<dt class="small text-muted fw-normal">Annual rate</dt>
+							<dd id="investment-rate-summary" class="h5 fw-semibold mb-3">
+								3.49%
+							</dd>
+						</div>
+						<div class="col-6 col-sm-4">
+							<dt class="small text-muted fw-normal">Units held at TT$20</dt>
+							<dd id="investment-units-summary" class="h5 fw-semibold mb-3">
+								0.000
+							</dd>
+						</div>
+					</dl>
+				</section>
+
+				<section class="bg-white rounded shadow p-4 mb-4">
+					<h2 class="h6 fw-semibold">Potential Monthly Contribution</h2>
+					<div
+						class="d-flex justify-content-between align-items-baseline gap-3 flex-wrap"
+					>
+						<p class="small text-muted mb-2">Based on this month's Savings</p>
+						<strong id="investment-contribution-total">TT$0.00</strong>
+					</div>
+					<input
+						id="investment-extra"
+						class="form-range"
+						type="range"
+						min="0"
+						max="1000"
+						step="25"
+						value="0"
+					/>
+					<div class="d-flex justify-content-between small text-muted">
+						<span id="investment-surplus-label">Current Savings: TT$0.00</span>
+						<span id="investment-extra-label"
+							>Hypothetical increase: TT$0.00</span
+						>
+					</div>
+				</section>
+
+				<section class="bg-white rounded shadow p-4">
+					<h2 class="h6 fw-semibold">Payout projections</h2>
+					<div class="row g-3 mt-1">
+						<div class="col-12 col-md-3">
+							<div class="border rounded p-3 h-100">
+								<div class="small text-muted">
+									Next quarterly payout (reinvested)
+								</div>
+								<div id="investment-quarter-payout" class="h5 fw-semibold mt-1">
+									TT$0.00
+								</div>
+							</div>
+						</div>
+						<div class="col-12 col-md-3">
+							<div class="border rounded p-3 h-100">
+								<div class="small text-muted">
+									Projected invested principal (1 year)
+								</div>
+								<div id="investment-year-principal" class="h5 fw-semibold mt-1">
+									TT$0.00
+								</div>
+							</div>
+						</div>
+						<div class="col-12 col-md-3">
+							<div class="border rounded p-3 h-100">
+								<div class="small text-muted">
+									Projected investment earnings (1 year)
+								</div>
+								<div id="investment-year-earnings" class="h5 fw-semibold mt-1">
+									TT$0.00
+								</div>
+							</div>
+						</div>
+						<div class="col-12 col-md-3">
+							<div class="border rounded p-3 h-100">
+								<div class="small text-muted">
+									Estimated monthly income equivalent
+								</div>
+								<div id="investment-monthly-income" class="h5 fw-semibold mt-1">
+									TT$0.00
+								</div>
+							</div>
+						</div>
+					</div>
+					<p id="investment-year-value" class="fw-semibold mt-3 mb-0">
+						Projected one-year value: TT$0.00
+					</p>
+				</section>
+			</div>
+		</main>
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+		<script type="module" src="js/app.js"></script>
+	</body>
+</html>

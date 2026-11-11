@@ -380,16 +380,20 @@ function renderMonthAndBase(state) {
 }
 
 function renderSummaryCards(state) {
-	const totalIncome = state.transactions
+	const transactions = getCurrentMonthTransactions(state);
+	const totalIncome = transactions
 		.filter((t) => t.type === "income")
 		.reduce((sum, t) => sum + Number(t.amount), 0);
 
-	const totalExpense = state.transactions
-		.filter((t) => t.type === "expense")
+	const totalExpense = transactions
+		.filter((t) => t.type === "expense" && !t.bankPool)
+		.reduce((sum, t) => sum + Number(t.amount), 0);
+	const bankPoolTotal = transactions
+		.filter((t) => t.type === "expense" && t.bankPool)
 		.reduce((sum, t) => sum + Number(t.amount), 0);
 
 	const baseBudget = Number(state.meta.baseBudget || 0);
-	const remaining = Math.max(0, baseBudget - totalExpense);
+	const savings = baseBudget - totalExpense;
 
 	document.getElementById("summary-cards").innerHTML = `
         <div class="col">
@@ -418,8 +422,8 @@ function renderSummaryCards(state) {
         </div>
         <div class="col">
             <div class="card text-center p-3">
-                <div class="small text-muted">Remaining</div>
-                <div class="h5 fw-semibold">$${remaining.toLocaleString(
+                <div class="small text-muted">Savings this month</div>
+                <div class="h5 fw-semibold ${savings < 0 ? "text-danger" : ""}">$${savings.toLocaleString(
 									undefined,
 									{
 										minimumFractionDigits: 2,
@@ -428,31 +432,54 @@ function renderSummaryCards(state) {
 								)}</div>
             </div>
         </div>
+        <div class="col">
+            <div class="card text-center p-3">
+                <div class="small text-muted">Bank pool spending</div>
+                <div class="h5 fw-semibold">$${bankPoolTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+        </div>
     `;
 }
 
 function renderSpendProgress(state) {
-	const totalExpense = state.transactions
-		.filter((t) => t.type === "expense")
+	const totalExpense = getCurrentMonthTransactions(state)
+		.filter((t) => t.type === "expense" && !t.bankPool)
 		.reduce((sum, t) => sum + Number(t.amount), 0);
 
 	const baseBudget = Number(state.meta.baseBudget || 0);
 	const spentPercent =
-		baseBudget > 0
-			? Math.min(100, Math.round((totalExpense / baseBudget) * 100))
-			: 0;
+		baseBudget > 0 ? Math.round((totalExpense / baseBudget) * 100) : 0;
 
 	const spendBar = document.getElementById("spend-bar");
 	const spendPercentLabel = document.getElementById("spend-percent");
 
-	if (spendBar) spendBar.style.width = `${spentPercent}%`;
+	if (spendBar) {
+		spendBar.style.width = `${Math.min(100, spentPercent)}%`;
+		spendBar.classList.toggle("bg-danger", spentPercent > 100);
+		spendBar.classList.toggle("bg-success", spentPercent <= 100);
+	}
 	if (spendPercentLabel)
-		spendPercentLabel.textContent = `${spentPercent}% spent`;
+		spendPercentLabel.textContent = `${spentPercent}% of Budget Base spent`;
+}
+
+function getCurrentMonthTransactions(state) {
+	const transactions = Array.isArray(state.transactions)
+		? state.transactions
+		: [];
+	if (!state.meta?.month) return transactions;
+	return transactions.filter((transaction) =>
+		String(transaction.date || "").startsWith(`${state.meta.month}-`),
+	);
 }
 
 function getCategoryAmount(category, state) {
-	return state.transactions
-		.filter((t) => t.categoryId === category.id && t.type === category.type)
+	return getCurrentMonthTransactions(state)
+		.filter(
+			(t) =>
+				t.categoryId === category.id &&
+				t.type === category.type &&
+				(category.type === "income" || !t.bankPool),
+		)
 		.reduce((sum, t) => sum + Number(t.amount), 0);
 }
 
@@ -555,7 +582,7 @@ function renderIncomeCategories(categories, state) {
 	list.className = "mt-3 w-100";
 
 	categories.forEach((category) => {
-		const earned = state.transactions
+		const earned = getCurrentMonthTransactions(state)
 			.filter((t) => t.categoryId === category.id && t.type === "income")
 			.reduce((sum, t) => sum + Number(t.amount), 0);
 
@@ -586,15 +613,20 @@ function renderIncomeCategories(categories, state) {
 
 function renderExpenseCategories(categories, state, categoryList) {
 	categories.forEach((category) => {
-		const spent = state.transactions
-			.filter((t) => t.categoryId === category.id && t.type === "expense")
+		const spent = getCurrentMonthTransactions(state)
+			.filter(
+				(t) =>
+					t.categoryId === category.id && t.type === "expense" && !t.bankPool,
+			)
 			.reduce((sum, t) => sum + Number(t.amount), 0);
 
-		const limit =
-			typeof category.limit === "number" ? Number(category.limit) : 0;
+		const limit = Number(category.limit ?? 0);
 		const overLimit = Math.max(0, spent - limit);
 		const overPercent = limit > 0 ? Math.round((overLimit / limit) * 100) : 0;
-		const percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+		const overPercentText = limit > 0 ? ` (${overPercent}%)` : " (zero limit)";
+		const percent =
+			limit > 0 ? Math.round((spent / limit) * 100) : spent > 0 ? 100 : 0;
+		const remaining = limit - spent;
 
 		const li = document.createElement("li");
 		li.className = "py-3";
@@ -607,20 +639,17 @@ function renderExpenseCategories(categories, state, categoryList) {
 													minimumFractionDigits: 2,
 													maximumFractionDigits: 2,
 												})}
-                        ${limit > 0 ? `| Limit: $${limit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
+                        | Limit: $${limit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+						${remaining >= 0 ? `| Remaining: $${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
                     </div>
                 </div>
                 <div class="small text-end">
-                    ${overLimit > 0 ? `<div class="fw-semibold text-danger">$${overLimit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over (${overPercent}%)</div>` : `<div class="fw-semibold text-muted">On track</div>`}
+					${overLimit > 0 ? `<div class="fw-semibold text-danger">Over by $${overLimit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${overPercentText}</div>` : `<div class="fw-semibold text-muted">On track</div>`}
                 </div>
             </div>
-            ${
-							limit > 0
-								? `<div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
-                <div class="h-100 ${percent > 100 ? "bg-danger" : "bg-success"}" style="width:${Math.min(100, percent)}%"></div>
-            </div>`
-								: ""
-						}
+				<div class="w-100 bg-light rounded mt-2 overflow-hidden" style="height:0.5rem;">
+					<div class="h-100 ${overLimit > 0 ? "bg-danger" : "bg-success"}" style="width:${Math.min(100, percent)}%"></div>
+				</div>
             <div class="d-flex align-items-center gap-2 mt-2">
                 <button data-action="edit" data-id="${category.id}" class="btn btn-link btn-sm text-primary p-0">Edit</button>
                 <button data-action="delete" data-id="${category.id}" class="btn btn-link btn-sm text-danger p-0">Delete</button>
@@ -640,110 +669,6 @@ function insertExpenseHeader(categoryList) {
 
 function removeExpenseHeader() {
 	document.getElementById("expense-category-header")?.remove();
-}
-
-async function showRedistributeModal(remaining, expenseCategories) {
-	if (!expenseCategories?.length) return;
-
-	const rows = expenseCategories
-		.map(
-			(category) => `
-                <div class="d-flex gap-2 align-items-center mb-2">
-                    <div class="flex-grow-1">
-                        ${escapeHtml(category.name)}
-                        <div class="small text-muted">
-                            current: $${Number(
-															category.limit || 0,
-														).toLocaleString(undefined, {
-															minimumFractionDigits: 2,
-															maximumFractionDigits: 2,
-														})}
-                        </div>
-                    </div>
-                    <div style="width:10rem">
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            class="form-control alloc-input"
-                            data-cat-id="${category.id}"
-                            value="0"
-                        />
-                    </div>
-                </div>
-            `,
-		)
-		.join("");
-
-	const html = `
-        <div class="mb-2">
-            <p class="small">
-                Distribute the
-                <strong>$${remaining.toLocaleString(undefined, {
-									minimumFractionDigits: 2,
-									maximumFractionDigits: 2,
-								})}</strong>
-                remaining across your expense categories. Values must sum to the remaining amount.
-            </p>
-            ${rows}
-            <div class="d-flex gap-2 mt-2">
-                <button id="even-dist" class="btn btn-sm btn-outline-secondary">Evenly distribute</button>
-                <div class="flex-grow-1"></div>
-                <div class="small text-muted">Remaining must be fully allocated to save.</div>
-            </div>
-        </div>
-    `;
-
-	showModal({
-		title: "Redistribute unallocated budget",
-		html,
-		saveText: "Save",
-		onSave: async () => {
-			const inputs = Array.from(document.querySelectorAll(".alloc-input"));
-			let sum = 0;
-
-			const assignments = inputs.map((input) => {
-				const value = parseFloat(input.value) || 0;
-				sum += value;
-				return { id: input.getAttribute("data-cat-id"), value };
-			});
-
-			if (Math.abs(sum - remaining) > 0.01) {
-				alert(
-					`Allocated sum $${sum.toLocaleString(undefined, {
-						minimumFractionDigits: 2,
-						maximumFractionDigits: 2,
-					})} does not equal remaining $${remaining.toLocaleString(undefined, {
-						minimumFractionDigits: 2,
-						maximumFractionDigits: 2,
-					})}.`,
-				);
-				return false;
-			}
-
-			for (const assignment of assignments) {
-				const category = expenseCategories.find((c) => c.id === assignment.id);
-				if (!category) continue;
-
-				const newLimit =
-					Number(category.limit || 0) + Number(assignment.value || 0);
-				await updateCategory(category.id, { limit: newLimit });
-			}
-
-			await initDashboard();
-		},
-	});
-
-	setTimeout(() => {
-		document.getElementById("even-dist")?.addEventListener("click", () => {
-			const perCategory = Number(
-				(remaining / expenseCategories.length).toFixed(2),
-			);
-			document.querySelectorAll(".alloc-input").forEach((input) => {
-				input.value = perCategory;
-			});
-		});
-	}, 0);
 }
 
 function escapeHtml(value) {

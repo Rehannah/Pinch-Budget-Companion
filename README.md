@@ -1,10 +1,14 @@
 # Pinch-Budget-Companion
 
 ## Overview
-This project is a mobile-first web application designed to manage personal finances. It includes a dashboard for budget tracking, a transactions page for managing income and expenses, and a settings page for data management.
+
+Pinch Budget Companion is a mobile-first personal budgeting web application designed to complement an existing monthly budgeting spreadsheet.
+
+The application helps users manage their monthly budget, track income and expenses, monitor category spending limits, and record exceptional one-off expenses.
 
 ## Project Structure
-```
+
+```text
 pinch-budget-companion
 ├── src
 │   ├── dashboard.html
@@ -35,15 +39,35 @@ pinch-budget-companion
 ```
 
 ## Features
-- **Dashboard**: View budget information, category limits, and transaction summaries. Add or delete categories and update budget amounts.
-- **Transactions**: Track all transactions, with options to add, edit, or delete entries. Distinguish between income and expenses visually.
-- **Settings**: Manage app data with options to export to Excel, restart for a new month, and import data from a file.
+
+### 1. Dashboard
+
+Provides an overview of the current month's budget, income, expenses, and category allocations.
+
+### 2. Transactions
+
+Provides a centralized record of all income and expenses.
+
+### 3. Debts
+
+Provides an overview of money owed to the user and repayments received.
+
+### 4. Investments
+
+Provides a simple investment projection tool.
+
+### 5. Settings
+
+Provides options for managing the current month's budget and application data.
 
 ## Technologies Used
-- HTML, CSS, JavaScript
+
+- HTML5
+- CSS3
+- JavaScript (ES Modules)
 - Bootstrap 5
 - Firebase Authentication
-- Firestore cloud storage
+- Cloud Firestore
 
 ## Setup & Development
 
@@ -60,26 +84,20 @@ cd pinch-budget-companion
 npm install
 ```
 
-3. Serve the app locally:
+3. Serve the application locally:
 
 ```bash
 npm run serve
 ```
 
-4. Open the app in your browser at `http://localhost:8000`.
+4. Open the application in your browser:
 
-Notes:
-- App state is stored in Firestore and synchronized per authenticated user.
-- The app is designed as a static multi-page web app using ES modules.
-
-## Usage
-- Navigate through the app using the header links.
-- Use the dashboard to manage your budget.
-- Track transactions on the transactions page.
-- Adjust settings as needed in the settings page.
+`http://localhost:8000`
 
 ## Contributing
-Contributions are welcome! Please submit a pull request or open an issue for any enhancements or bug fixes.
+
+Contributions are welcome! Please submit a pull request or open an issue for enhancements, bug fixes, or suggestions.
 
 ## License
+
 This project is licensed under the MIT License.

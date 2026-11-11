@@ -1,10 +1,16 @@
 import { db, auth } from "./firebase-config.js";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { getDebtCategoryKind } from "./features/debt-categories.js";
 
 const DEFAULT_STATE = Object.freeze({
 	meta: {
 		month: null,
 		baseBudget: 0,
+		debtPreviousBalances: {},
+		investments: {
+			principal: 0,
+			annualRatePercent: 3.49,
+		},
 	},
 	categories: [],
 	transactions: [],
@@ -12,7 +18,11 @@ const DEFAULT_STATE = Object.freeze({
 
 function cloneDefaultState() {
 	return {
-		meta: { ...DEFAULT_STATE.meta },
+		meta: {
+			...DEFAULT_STATE.meta,
+			debtPreviousBalances: {},
+			investments: { ...DEFAULT_STATE.meta.investments },
+		},
 		categories: [],
 		transactions: [],
 	};
@@ -64,7 +74,72 @@ function normalizeTransaction(transaction = {}, fallbackIndex = 0) {
 		categoryId: transaction.categoryId || "",
 		type: transaction.type === "income" ? "income" : "expense",
 		description: String(transaction.description || ""),
+		bankPool: transaction.type !== "income" && transaction.bankPool === true,
 	};
+}
+
+function normalizeDebtBalances(balances = {}) {
+	if (!balances || typeof balances !== "object" || Array.isArray(balances)) {
+		return {};
+	}
+
+	return Object.fromEntries(
+		Object.entries(balances)
+			.filter(
+				([person, amount]) => person.trim() && Number.isFinite(Number(amount)),
+			)
+			.map(([person, amount]) => [person.trim(), Number(amount)]),
+	);
+}
+
+function normalizeInvestments(investments = {}) {
+	return {
+		principal: Number.isFinite(Number(investments.principal))
+			? Math.max(0, Number(investments.principal))
+			: 0,
+		annualRatePercent: Number.isFinite(Number(investments.annualRatePercent))
+			? Math.max(0, Number(investments.annualRatePercent))
+			: 3.49,
+	};
+}
+
+function getDebtClosingBalances(state) {
+	const balances = normalizeDebtBalances(state.meta?.debtPreviousBalances);
+	const categoriesById = new Map(
+		(state.categories || []).map((category) => [
+			category.id,
+			String(category.name || "")
+				.trim()
+				.toLowerCase(),
+		]),
+	);
+
+	for (const transaction of state.transactions || []) {
+		if (
+			state.meta?.month &&
+			!String(transaction.date || "").startsWith(`${state.meta.month}-`)
+		) {
+			continue;
+		}
+
+		const categoryKind = getDebtCategoryKind(
+			categoriesById.get(transaction.categoryId),
+		);
+		if (!categoryKind) continue;
+
+		const personMatch = String(transaction.description || "").match(
+			/\[([^\]]+)\]|\{([^}]+)\}/,
+		);
+		const person = (personMatch?.[1] || personMatch?.[2] || "").trim();
+		if (!person) continue;
+
+		const direction = categoryKind === "owed" ? 1 : -1;
+		balances[person] =
+			Number(balances[person] || 0) +
+			direction * Number(transaction.amount || 0);
+	}
+
+	return balances;
 }
 
 function sanitizeState(state = {}) {
@@ -75,6 +150,10 @@ function sanitizeState(state = {}) {
 		baseBudget: Number.isFinite(Number(state.meta?.baseBudget))
 			? Number(state.meta.baseBudget)
 			: 0,
+		debtPreviousBalances: normalizeDebtBalances(
+			state.meta?.debtPreviousBalances,
+		),
+		investments: normalizeInvestments(state.meta?.investments),
 	};
 
 	safeState.categories = Array.isArray(state.categories)
@@ -141,31 +220,41 @@ export async function getState() {
 	}
 }
 
-export async function saveState(state) {
+export async function saveStateOrThrow(state) {
+	let cleanedState;
 	try {
 		emitAppEvent("appSaving");
-
-		const cleanedState = await writeStateDoc(state);
-
-		emitAppEvent("appStateChanged", cleanedState);
-		emitAppEvent("appSaved");
-
-		return true;
+		cleanedState = await writeStateDoc(state);
 	} catch (error) {
 		console.error("[Cloud Storage] Save state error:", error);
 		emitAppEvent("appSaveFailed", { error });
+		throw error;
+	}
+
+	emitAppEvent("appStateChanged", cleanedState);
+	emitAppEvent("appSaved");
+	return cleanedState;
+}
+
+export async function saveState(state) {
+	try {
+		await saveStateOrThrow(state);
+		return true;
+	} catch (error) {
 		return false;
 	}
 }
 
 export async function resetForNewMonth({ month, baseBudget, categories } = {}) {
 	const current = await getState();
+	const debtPreviousBalances = getDebtClosingBalances(current);
 
 	const nextState = {
 		meta: {
 			...current.meta,
 			month: month || null,
 			baseBudget: Number(baseBudget || 0),
+			debtPreviousBalances,
 		},
 		categories:
 			typeof categories === "undefined"
@@ -236,7 +325,7 @@ export async function addTransaction(transaction) {
 	});
 
 	state.transactions.push(nextTransaction);
-	await saveState(state);
+	await saveStateOrThrow(state);
 
 	return nextTransaction;
 }
@@ -254,7 +343,7 @@ export async function editTransaction(id, patch) {
 		id,
 	});
 
-	await saveState(state);
+	await saveStateOrThrow(state);
 	return state.transactions[index];
 }
 
@@ -263,49 +352,8 @@ export async function deleteTransaction(id) {
 	state.transactions = state.transactions.filter(
 		(transaction) => transaction.id !== id,
 	);
-	await saveState(state);
+	await saveStateOrThrow(state);
 	return state;
-}
-
-export async function transferBetweenCategories(
-	fromCategoryId,
-	toCategoryId,
-	amount,
-) {
-	const state = await getState();
-
-	const from = state.categories.find(
-		(category) => category.id === fromCategoryId,
-	);
-	const to = state.categories.find((category) => category.id === toCategoryId);
-	const numericAmount = Number(amount);
-
-	if (!from || !to) throw new Error("Invalid category");
-	if (from.type === "income" || to.type === "income") {
-		throw new Error("Transfers only supported between expense categories");
-	}
-	if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-		throw new Error("Invalid transfer amount");
-	}
-
-	const spentInFrom = state.transactions
-		.filter(
-			(transaction) =>
-				transaction.categoryId === fromCategoryId &&
-				transaction.type === "expense",
-		)
-		.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-
-	const available = Number(from.limit || 0) - spentInFrom;
-	if (available < numericAmount) {
-		throw new Error("Insufficient available funds in source category");
-	}
-
-	from.limit = Number(from.limit || 0) - numericAmount;
-	to.limit = Number(to.limit || 0) + numericAmount;
-
-	await saveState(state);
-	return { from, to };
 }
 
 export async function clearAllData() {
