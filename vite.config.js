@@ -4,6 +4,7 @@ import { resolve } from "path";
 export default defineConfig({
 	base: "/", // Firebase Hosting at root
 	root: "src",
+	publicDir: "public",
 	build: {
 		outDir: "../dist",
 		emptyOutDir: true,
