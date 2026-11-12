@@ -1,6 +1,5 @@
 import { db, auth } from "./firebase-config.js";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
-import { getDebtCategoryKind } from "./features/debt-categories.js";
 
 const DEFAULT_STATE = Object.freeze({
 	meta: {
@@ -101,45 +100,6 @@ function normalizeInvestments(investments = {}) {
 			? Math.max(0, Number(investments.annualRatePercent))
 			: 3.49,
 	};
-}
-
-function getDebtClosingBalances(state) {
-	const balances = normalizeDebtBalances(state.meta?.debtPreviousBalances);
-	const categoriesById = new Map(
-		(state.categories || []).map((category) => [
-			category.id,
-			String(category.name || "")
-				.trim()
-				.toLowerCase(),
-		]),
-	);
-
-	for (const transaction of state.transactions || []) {
-		if (
-			state.meta?.month &&
-			!String(transaction.date || "").startsWith(`${state.meta.month}-`)
-		) {
-			continue;
-		}
-
-		const categoryKind = getDebtCategoryKind(
-			categoriesById.get(transaction.categoryId),
-		);
-		if (!categoryKind) continue;
-
-		const personMatch = String(transaction.description || "").match(
-			/\[([^\]]+)\]|\{([^}]+)\}/,
-		);
-		const person = (personMatch?.[1] || personMatch?.[2] || "").trim();
-		if (!person) continue;
-
-		const direction = categoryKind === "owed" ? 1 : -1;
-		balances[person] =
-			Number(balances[person] || 0) +
-			direction * Number(transaction.amount || 0);
-	}
-
-	return balances;
 }
 
 function sanitizeState(state = {}) {
@@ -247,14 +207,13 @@ export async function saveState(state) {
 
 export async function resetForNewMonth({ month, baseBudget, categories } = {}) {
 	const current = await getState();
-	const debtPreviousBalances = getDebtClosingBalances(current);
 
 	const nextState = {
 		meta: {
 			...current.meta,
 			month: month || null,
 			baseBudget: Number(baseBudget || 0),
-			debtPreviousBalances,
+			debtPreviousBalances: {},
 		},
 		categories:
 			typeof categories === "undefined"

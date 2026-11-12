@@ -623,7 +623,7 @@ function renderExpenseCategories(categories, state, categoryList) {
 		const limit = Number(category.limit ?? 0);
 		const overLimit = Math.max(0, spent - limit);
 		const overPercent = limit > 0 ? Math.round((overLimit / limit) * 100) : 0;
-		const overPercentText = limit > 0 ? ` (${overPercent}%)` : " (zero limit)";
+		const overPercentText = limit > 0 ? ` (${overPercent}%)` : "";
 		const percent =
 			limit > 0 ? Math.round((spent / limit) * 100) : spent > 0 ? 100 : 0;
 		const remaining = limit - spent;

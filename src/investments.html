@@ -82,16 +82,14 @@
 						id="investment-extra"
 						class="form-range"
 						type="range"
-						min="0"
+						min="-1000"
 						max="1000"
 						step="25"
 						value="0"
 					/>
 					<div class="d-flex justify-content-between small text-muted">
 						<span id="investment-surplus-label">Current Savings: TT$0.00</span>
-						<span id="investment-extra-label"
-							>Hypothetical increase: TT$0.00</span
-						>
+						<span id="investment-extra-label">Adjustment: +TT$0.00</span>
 					</div>
 				</section>
 
@@ -139,9 +137,10 @@
 							</div>
 						</div>
 					</div>
-					<p id="investment-year-value" class="fw-semibold mt-3 mb-0">
-						Projected one-year value: TT$0.00
-					</p>
+					<div class="investment-year-result mt-3">
+						<span class="small text-muted">Projected value after one year</span>
+						<strong id="investment-year-value" class="h5 mb-0">TT$0.00</strong>
+					</div>
 				</section>
 			</div>
 		</main>

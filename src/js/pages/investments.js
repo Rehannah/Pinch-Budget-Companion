@@ -108,21 +108,28 @@ function renderProjections() {
 		)
 		.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 	const budgetSavings = baseBudget - countedExpenses;
-	const hypotheticalIncrease = Number(
-		document.getElementById("investment-extra")?.value || 0,
+	const slider = document.getElementById("investment-extra");
+	const adjustmentStep = Number(slider.step) || 25;
+	const maximumAdjustment =
+		Math.ceil(Math.max(1000, baseBudget) / adjustmentStep) * adjustmentStep;
+	const minimumAdjustment =
+		-Math.ceil(Math.max(0, budgetSavings) / adjustmentStep) * adjustmentStep;
+	slider.min = String(minimumAdjustment);
+	slider.max = String(maximumAdjustment);
+	const hypotheticalAdjustment = Math.min(
+		maximumAdjustment,
+		Math.max(minimumAdjustment, Number(slider.value || 0)),
 	);
+	slider.value = String(hypotheticalAdjustment);
 	const potentialContribution = Math.max(
 		0,
-		budgetSavings + hypotheticalIncrease,
+		budgetSavings + hypotheticalAdjustment,
 	);
 
-	document.getElementById("investment-extra").max = String(
-		Math.max(1000, baseBudget),
-	);
 	document.getElementById("investment-surplus-label").textContent =
 		`Current Savings: TT$${formatMoney(budgetSavings)}`;
 	document.getElementById("investment-extra-label").textContent =
-		`Hypothetical increase: TT$${formatMoney(hypotheticalIncrease)}`;
+		`Adjustment: ${hypotheticalAdjustment > 0 ? "+" : "−"}TT$${formatMoney(Math.abs(hypotheticalAdjustment))}`;
 	document.getElementById("investment-contribution-total").textContent =
 		`TT$${formatMoney(potentialContribution)}`;
 
@@ -145,7 +152,7 @@ function renderProjections() {
 	document.getElementById("investment-year-earnings").textContent =
 		`TT$${formatMoney(year.earnings)}`;
 	document.getElementById("investment-year-value").textContent =
-		`Projected one-year value: TT$${formatMoney(year.balance)}`;
+		`TT$${formatMoney(year.balance)}`;
 	document.getElementById("investment-monthly-income").textContent =
 		`TT$${formatMoney(year.earnings / 12)}`;
 }

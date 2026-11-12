@@ -181,6 +181,15 @@ main {
 		font-size: 1rem;
 	}
 
+	.investment-year-result {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.investment-year-result strong {
+		overflow-wrap: anywhere;
+	}
+
 	#investment-extra-label,
 	#investment-surplus-label {
 		flex: 1 1 9rem;

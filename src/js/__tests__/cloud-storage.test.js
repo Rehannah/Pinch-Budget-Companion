@@ -16,7 +16,7 @@ vi.mock("firebase/firestore", () => ({
 	serverTimestamp: firestore.serverTimestamp,
 }));
 
-const { addTransaction, editTransaction, deleteTransaction } =
+const { addTransaction, editTransaction, deleteTransaction, resetForNewMonth } =
 	await import("../cloud-storage.js");
 
 function existingState() {
@@ -55,6 +55,22 @@ beforeEach(() => {
 });
 
 describe("transaction Firestore persistence", () => {
+	it("clears carried-over debt balances when resetting the month", async () => {
+		const state = existingState();
+		state.meta.debtPreviousBalances = { Alex: 125 };
+		firestore.getDoc.mockResolvedValue({
+			exists: () => true,
+			data: () => structuredClone(state),
+		});
+
+		await resetForNewMonth({ month: "2026-12", baseBudget: 3200 });
+
+		const writtenState = firestore.setDoc.mock.calls[0][1];
+		expect(writtenState.meta.debtPreviousBalances).toEqual({});
+		expect(writtenState.transactions).toEqual([]);
+		expect(writtenState.meta.investments).toEqual(state.meta.investments);
+	});
+
 	it("writes a new transaction to the app-state document", async () => {
 		const result = await addTransaction({
 			date: "2026-11-11",
