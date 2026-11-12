@@ -76,16 +76,23 @@ main {
 
 	.bottom-nav .container {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
+		flex-wrap: nowrap;
+		justify-content: flex-start;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.bottom-nav .container::-webkit-scrollbar {
+		display: none;
 	}
 
 	.bottom-nav a {
-		flex: 1 1 20%;
-		min-width: 0;
+		flex: 0 0 auto;
+		min-width: 4.25rem;
 		text-align: center;
 		padding: 0.6rem 0.1rem !important;
 		font-size: 0.7rem;
+		white-space: nowrap;
 	}
 
 	header .d-flex {
@@ -114,6 +121,74 @@ main {
 	select,
 	textarea {
 		min-width: 0;
+	}
+}
+
+@media (max-width: 575.98px) {
+	.debt-table thead {
+		display: none;
+	}
+
+	.debt-table,
+	.debt-table tbody {
+		display: block;
+		width: 100%;
+	}
+
+	.debt-table tbody tr {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 0.5rem 0.75rem;
+		padding: 0.75rem 0;
+		border-bottom: 1px solid #dee2e6;
+	}
+
+	.debt-table tbody th[scope="row"] {
+		grid-column: 1 / -1;
+		padding: 0 0 0.25rem;
+		border: 0;
+	}
+
+	.debt-table tbody td {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 0;
+		padding: 0.35rem 0;
+		border: 0;
+		font-size: 0.875rem;
+	}
+
+	.debt-table tbody td::before {
+		content: attr(data-label);
+		color: #6c757d;
+		font-size: 0.72rem;
+		font-weight: 500;
+	}
+
+	.debt-table .debt-previous {
+		width: 100%;
+		min-width: 0;
+	}
+
+	.investment-projection-card {
+		padding: 0.75rem !important;
+		height: 100%;
+		overflow-wrap: anywhere;
+	}
+
+	.investment-projection-card .h5 {
+		font-size: 1rem;
+	}
+
+	#investment-extra-label,
+	#investment-surplus-label {
+		flex: 1 1 9rem;
+		min-width: 0;
+	}
+
+	#investment-extra-label {
+		text-align: right;
 	}
 }
 

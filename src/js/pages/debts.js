@@ -76,10 +76,10 @@ function renderDebts(state) {
 			return `
 			<tr>
 				<th scope="row">${escapeHtml(person)}</th>
-				<td><input class="form-control form-control-sm debt-previous" type="number" step="0.01" data-person="${escapeHtml(person)}" value="${values.previous.toFixed(2)}" aria-label="Previously owing for ${escapeHtml(person)}" /></td>
-				<td>$${formatMoney(values.owed)}</td>
-				<td>$${formatMoney(values.repaid)}</td>
-				<td class="fw-semibold ${balance < 0 ? "text-success" : ""}">$${formatMoney(balance)}</td>
+					<td data-label="Previously owing"><input class="form-control form-control-sm debt-previous" type="number" step="0.01" data-person="${escapeHtml(person)}" value="${values.previous.toFixed(2)}" aria-label="Previously owing for ${escapeHtml(person)}" /></td>
+					<td data-label="Owing this month">$${formatMoney(values.owed)}</td>
+					<td data-label="Repaid this month">$${formatMoney(values.repaid)}</td>
+					<td data-label="Balance" class="fw-semibold ${balance < 0 ? "text-success" : ""}">$${formatMoney(balance)}</td>
 			</tr>
 		`;
 		})
