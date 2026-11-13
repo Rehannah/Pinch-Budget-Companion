@@ -5,10 +5,17 @@ const DEFAULT_STATE = Object.freeze({
 	meta: {
 		month: null,
 		baseBudget: 0,
+		portfolioGoal: 200000,
 		debtPreviousBalances: {},
 		investments: {
 			principal: 0,
 			annualRatePercent: 3.49,
+			monthlyContribution: null,
+		},
+		gif: {
+			principal: 0,
+			distributionYieldPercent: 2.5,
+			monthlyContribution: 500,
 		},
 	},
 	categories: [],
@@ -21,6 +28,7 @@ function cloneDefaultState() {
 			...DEFAULT_STATE.meta,
 			debtPreviousBalances: {},
 			investments: { ...DEFAULT_STATE.meta.investments },
+			gif: { ...DEFAULT_STATE.meta.gif },
 		},
 		categories: [],
 		transactions: [],
@@ -92,6 +100,7 @@ function normalizeDebtBalances(balances = {}) {
 }
 
 function normalizeInvestments(investments = {}) {
+	const monthlyContribution = investments.monthlyContribution;
 	return {
 		principal: Number.isFinite(Number(investments.principal))
 			? Math.max(0, Number(investments.principal))
@@ -99,6 +108,30 @@ function normalizeInvestments(investments = {}) {
 		annualRatePercent: Number.isFinite(Number(investments.annualRatePercent))
 			? Math.max(0, Number(investments.annualRatePercent))
 			: 3.49,
+		monthlyContribution:
+			monthlyContribution == null
+				? null
+				: Number.isFinite(Number(monthlyContribution))
+					? Math.max(0, Number(monthlyContribution))
+					: null,
+	};
+}
+
+function normalizeGif(gif = {}) {
+	const principal = gif.principal ?? gif.currentValue;
+	const legacyYield = Number(gif.annualDistributionRatePercent);
+	const distributionYieldPercent =
+		gif.distributionYieldPercent ?? (legacyYield > 0 ? legacyYield : 2.5);
+	return {
+		principal: Number.isFinite(Number(principal))
+			? Math.max(0, Number(principal))
+			: 0,
+		distributionYieldPercent: Number.isFinite(Number(distributionYieldPercent))
+			? Math.min(100, Math.max(0, Number(distributionYieldPercent)))
+			: 2.5,
+		monthlyContribution: Number.isFinite(Number(gif.monthlyContribution))
+			? Math.min(5000, Math.max(0, Number(gif.monthlyContribution)))
+			: 500,
 	};
 }
 
@@ -110,10 +143,16 @@ function sanitizeState(state = {}) {
 		baseBudget: Number.isFinite(Number(state.meta?.baseBudget))
 			? Number(state.meta.baseBudget)
 			: 0,
+		portfolioGoal:
+			Number.isFinite(Number(state.meta?.portfolioGoal)) &&
+			Number(state.meta.portfolioGoal) > 0
+				? Number(state.meta.portfolioGoal)
+				: 200000,
 		debtPreviousBalances: normalizeDebtBalances(
 			state.meta?.debtPreviousBalances,
 		),
 		investments: normalizeInvestments(state.meta?.investments),
+		gif: normalizeGif(state.meta?.gif),
 	};
 
 	safeState.categories = Array.isArray(state.categories)
@@ -213,7 +252,6 @@ export async function resetForNewMonth({ month, baseBudget, categories } = {}) {
 			...current.meta,
 			month: month || null,
 			baseBudget: Number(baseBudget || 0),
-			debtPreviousBalances: {},
 		},
 		categories:
 			typeof categories === "undefined"

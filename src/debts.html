@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Debts — Pinch</title>
 		<link rel="manifest" href="/manifest.json" />
 		<link rel="icon" type="image/png" href="/icons/icon-192.png" />
@@ -30,7 +30,7 @@
 			</div>
 		</div>
 		<div id="app-header"></div>
-		<main class="min-vh-100 p-4 bg-surface">
+		<main class="min-vh-100 px-2 px-sm-4 py-3 py-sm-4 bg-surface">
 			<div class="container">
 				<section class="bg-white rounded shadow p-4">
 					<div
@@ -41,17 +41,17 @@
 							<p id="debt-month" class="small text-muted mb-0"></p>
 						</div>
 						<button
-							id="debt-reset-balances"
-							class="btn btn-outline-secondary btn-sm"
+							id="debt-add-person"
+							class="btn btn-primary btn-sm"
 							type="button"
 						>
-							Reset opening balances
+							Add person
 						</button>
 					</div>
 					<p class="small text-muted mt-3 mb-0">
-						Current-month debt activity follows the transaction list; edit or
-						delete its transaction to change it. Resetting opening balances
-						clears carried-over amounts only.
+						Opening balances carry over when you reset the month. Monthly owed
+						and repaid amounts follow transactions and clear with the monthly
+						transaction list.
 					</p>
 					<div class="table-responsive mt-3">
 						<table class="table align-middle debt-table">

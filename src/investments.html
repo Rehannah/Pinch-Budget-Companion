@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Investments — Pinch</title>
 		<link rel="manifest" href="/manifest.json" />
 		<link rel="icon" type="image/png" href="/icons/icon-192.png" />
@@ -30,117 +30,187 @@
 			</div>
 		</div>
 		<div id="app-header"></div>
-		<main class="min-vh-100 p-4 bg-surface">
-			<div class="container">
-				<section class="bg-white rounded shadow p-4 mb-4">
-					<div class="d-flex justify-content-between align-items-start gap-3">
-						<div>
-							<h1 class="h5 fw-semibold mb-1">Investments</h1>
-							<p class="small text-muted mb-3">
-								Unit Trust TT Income Fund (TTIF)
-							</p>
+		<main class="min-vh-100 px-2 px-sm-4 py-3 py-sm-4 bg-surface">
+			<div class="container investment-page">
+				<section
+					class="investment-summary bg-white rounded shadow p-3 p-sm-4"
+					aria-label="Investment portfolio summary"
+				>
+					<h1 class="h5 fw-semibold mb-1">Investment portfolio</h1>
+					<div class="portfolio-metric">
+						<span>Current total investment value</span>
+						<strong id="portfolio-current-value">TT$0.00</strong>
+					</div>
+					<div class="portfolio-holdings mt-3">
+						<div><span>TTIF</span><strong id="investment-principal-summary">TT$0.00</strong></div>
+						<div><span>GIF</span><strong id="gif-current-value-summary">TT$0.00</strong></div>
+					</div>
+					<div class="summary-metrics mt-3">
+						<div class="summary-metric">
+							<span>Projected combined value in 1 year</span
+							><strong id="combined-year-value">TT$0.00</strong>
 						</div>
+						<div class="summary-metric">
+							<span>Total monthly investing</span
+							><strong id="portfolio-monthly-contribution">TT$0.00</strong>
+						</div>
+					</div>
+					<div class="goal-row mt-4">
+						<span>Goal</span>
+						<strong id="portfolio-goal-value">TT$200,000.00</strong>
 						<button
-							id="edit-investment"
-							class="btn btn-outline-primary btn-sm"
+							id="edit-portfolio-goal"
+							class="btn btn-link btn-sm"
 							type="button"
 						>
 							Edit
 						</button>
 					</div>
-					<dl class="row mb-0">
-						<div class="col-12 col-sm-4">
-							<dt class="small text-muted fw-normal">Current principal</dt>
-							<dd id="investment-principal-summary" class="h5 fw-semibold mb-3">
-								TT$0.00
-							</dd>
-						</div>
-						<div class="col-6 col-sm-4">
-							<dt class="small text-muted fw-normal">Annual rate</dt>
-							<dd id="investment-rate-summary" class="h5 fw-semibold mb-3">
-								3.49%
-							</dd>
-						</div>
-						<div class="col-6 col-sm-4">
-							<dt class="small text-muted fw-normal">Units held at TT$20</dt>
-							<dd id="investment-units-summary" class="h5 fw-semibold mb-3">
-								0.000
-							</dd>
-						</div>
-					</dl>
-				</section>
-
-				<section class="bg-white rounded shadow p-4 mb-4">
-					<h2 class="h6 fw-semibold">Potential Monthly Contribution</h2>
 					<div
-						class="d-flex justify-content-between align-items-baseline gap-3 flex-wrap"
+						class="progress mt-2"
+						role="progressbar"
+						aria-label="Progress toward investment goal"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow="0"
 					>
-						<p class="small text-muted mb-2">Based on this month's Savings</p>
-						<strong id="investment-contribution-total">TT$0.00</strong>
+						<div
+							id="portfolio-progress-bar"
+							class="progress-bar"
+							style="width: 0%"
+						></div>
 					</div>
-					<input
-						id="investment-extra"
-						class="form-range"
-						type="range"
-						min="-1000"
-						max="1000"
-						step="25"
-						value="0"
-					/>
-					<div class="d-flex justify-content-between small text-muted">
-						<span id="investment-surplus-label">Current Savings: TT$0.00</span>
-						<span id="investment-extra-label">Adjustment: +TT$0.00</span>
+					<div class="d-flex justify-content-between small text-muted mt-1">
+						<span id="portfolio-progress-percent">0%</span>
+						<span id="portfolio-months-to-goal">10+ years</span>
 					</div>
 				</section>
 
-				<section class="bg-white rounded shadow p-4">
-					<h2 class="h6 fw-semibold">Payout projections</h2>
-					<div class="row g-3 mt-1">
-						<div class="col-6 col-md-3">
-							<div class="border rounded p-3 h-100 investment-projection-card">
-								<div class="small text-muted">
-									Next quarterly payout (reinvested)
-								</div>
-								<div id="investment-quarter-payout" class="h5 fw-semibold mt-1">
-									TT$0.00
+				<div class="investment-funds mt-4">
+					<section
+						class="investment-fund bg-white rounded shadow p-3 p-sm-4"
+						aria-labelledby="ttif-heading"
+					>
+						<div class="fund-heading">
+							<h2 id="ttif-heading" class="h6 fw-semibold mb-0">
+								TTIF · TT Income Fund
+							</h2>
+							<button
+								id="edit-investment"
+								class="btn btn-outline-primary btn-sm"
+								type="button"
+							>
+								Edit details
+							</button>
+						</div>
+						<div class="fund-current-value mt-3">
+							<strong id="ttif-current-value">TT$0.00</strong>
+							<span>Current principal</span>
+						</div>
+						<div class="fund-control mt-4">
+							<div class="fund-control-label">
+								<span>Planned contribution</span
+								><strong id="investment-contribution-total">TT$0.00</strong>
+							</div>
+							<input
+								id="investment-extra"
+								class="form-range"
+								type="range"
+								min="0"
+								max="10000"
+								step="50"
+								value="0"
+								aria-label="TTIF planned monthly contribution"
+							/>
+							<div class="fund-control-foot">
+								<span id="investment-surplus-label">Savings: TT$0.00</span
+								><div class="ttif-adjustment-control">
+									<span id="investment-extra-label" class="contribution-adjustment">TT$0.00</span>
+									<button id="investment-match-savings" class="btn btn-outline-secondary btn-sm" type="button">Match savings</button>
 								</div>
 							</div>
 						</div>
-						<div class="col-6 col-md-3">
-							<div class="border rounded p-3 h-100 investment-projection-card">
-								<div class="small text-muted">
-									Projected invested principal (1 year)
-								</div>
-								<div id="investment-year-principal" class="h5 fw-semibold mt-1">
-									TT$0.00
-								</div>
+						<dl class="projection-list mt-3 mb-0">
+							<div>
+								<dt>Next quarterly payout</dt>
+								<dd id="investment-quarter-payout">TT$0.00</dd>
 							</div>
-						</div>
-						<div class="col-6 col-md-3">
-							<div class="border rounded p-3 h-100 investment-projection-card">
-								<div class="small text-muted">
-									Projected investment earnings (1 year)
-								</div>
-								<div id="investment-year-earnings" class="h5 fw-semibold mt-1">
-									TT$0.00
-								</div>
+							<div>
+								<dt>1yr Earnings</dt>
+								<dd id="investment-year-earnings">TT$0.00</dd>
 							</div>
-						</div>
-						<div class="col-6 col-md-3">
-							<div class="border rounded p-3 h-100 investment-projection-card">
-								<div class="small text-muted">
-									Estimated monthly income equivalent
-								</div>
-								<div id="investment-monthly-income" class="h5 fw-semibold mt-1">
-									TT$0.00
-								</div>
+							<div>
+								<dt>1yr Value</dt>
+								<dd id="investment-year-value">TT$0.00</dd>
 							</div>
+						</dl>
+					</section>
+
+					<section
+						class="investment-fund bg-white rounded shadow p-3 p-sm-4"
+						aria-labelledby="gif-heading"
+					>
+						<div class="fund-heading">
+							<h2 id="gif-heading" class="h6 fw-semibold mb-0">
+								GIF · Growth &amp; Income Fund
+							</h2>
+							<button
+								id="edit-gif"
+								class="btn btn-outline-primary btn-sm"
+								type="button"
+							>
+								Edit details
+							</button>
 						</div>
+						<div class="fund-current-value mt-3">
+							<strong id="gif-current-value">TT$0.00</strong>
+							<span>Current principal</span>
+						</div>
+						<div class="fund-control mt-4">
+							<div class="fund-control-label">
+								<span>Planned contribution</span
+								><strong id="gif-contribution-label">TT$500.00</strong>
+							</div>
+							<input
+								id="gif-extra"
+								class="form-range"
+								type="range"
+								min="0"
+								max="5000"
+								step="50"
+								value="500"
+								aria-label="GIF planned monthly contribution"
+							/>
+						</div>
+						<dl class="projection-list mt-3 mb-0">
+							<div>
+								<dt>Next bi-annual payout</dt>
+								<dd id="gif-next-payout">TT$0.00</dd>
+							</div>
+							<div>
+								<dt>1yr Earnings</dt>
+								<dd id="gif-year-earnings">TT$0.00</dd>
+							</div>
+							<div>
+								<dt>1yr Value</dt>
+								<dd id="gif-year-value">TT$0.00</dd>
+							</div>
+						</dl>
+					</section>
+				</div>
+				<section class="portfolio-chart-section bg-white rounded shadow p-3 p-sm-4 mt-4" aria-labelledby="investment-chart-title">
+					<div class="chart-heading">
+						<h2 id="investment-chart-title" class="h6 fw-semibold mb-0">Investment value over time</h2>
+						<span class="small text-muted">TT$ · month</span>
 					</div>
-					<div class="investment-year-result mt-3">
-						<span class="small text-muted">Projected value after one year</span>
-						<strong id="investment-year-value" class="h5 mb-0">TT$0.00</strong>
+					<div class="investment-chart-legend" aria-hidden="true">
+						<span><i class="legend-ttif"></i>TTIF</span>
+						<span><i class="legend-gif"></i>GIF</span>
+						<span><i class="legend-goal"></i>Goal</span>
 					</div>
+					<svg id="investment-chart" width="720" height="240" viewBox="0 0 720 240" role="img" aria-label="Stacked TTIF and GIF investment values from month 0 to month 12, with the goal shown as a dashed line">
+						<g id="investment-chart-content"></g>
+					</svg>
 				</section>
 			</div>
 		</main>

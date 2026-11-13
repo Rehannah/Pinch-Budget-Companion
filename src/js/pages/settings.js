@@ -58,7 +58,7 @@ async function openRestartModal() {
         </div>
 
         <div class="small text-muted mb-3">
-			Transactions are cleared for the new month. Categories and limits are optional to carry forward. Investment settings and debt balances are retained.
+			Transactions for the month are cleared. Categories and limits are optional to carry forward. Investment settings and debt opening balances are retained.
         </div>
     `;
 

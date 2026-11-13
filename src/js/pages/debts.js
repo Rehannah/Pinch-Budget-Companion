@@ -1,4 +1,5 @@
 import { getState, saveState } from "../cloud-storage.js";
+import { showModal } from "../components/modal.js";
 import { getDebtCategoryKind } from "../features/debt-categories.js";
 
 let debtHandlersBound = false;
@@ -13,10 +14,10 @@ export async function initDebts() {
 			?.addEventListener("change", savePreviousOwing);
 		document
 			.getElementById("debt-rows")
-			?.addEventListener("click", clearPersonPreviousOwing);
+			?.addEventListener("click", deleteDebtPerson);
 		document
-			.getElementById("debt-reset-balances")
-			?.addEventListener("click", resetPreviousOwing);
+			.getElementById("debt-add-person")
+			?.addEventListener("click", addDebtPerson);
 		debtHandlersBound = true;
 	}
 }
@@ -87,7 +88,7 @@ function renderDebts(state) {
 					<td data-label="Repaid this month">$${formatMoney(values.repaid)}</td>
 					<td data-label="Balance" class="fw-semibold ${balance < 0 ? "text-success" : ""}">$${formatMoney(balance)}</td>
 					<td data-label="Actions">
-						<button class="btn btn-link btn-sm text-danger p-0 debt-clear-previous" type="button" data-person="${escapeHtml(person)}">Clear opening</button>
+						<button class="btn btn-link btn-sm text-danger p-0 debt-delete-person" type="button" data-person="${escapeHtml(person)}">Delete</button>
 					</td>
 			</tr>
 		`;
@@ -122,37 +123,101 @@ async function savePreviousOwing(event) {
 		alert("Could not save the previous debt balance.");
 }
 
-async function clearPersonPreviousOwing(event) {
-	const button = event.target.closest(".debt-clear-previous");
+async function deleteDebtPerson(event) {
+	const button = event.target.closest(".debt-delete-person");
 	if (!button) return;
 
 	const person = button.dataset.person;
-	const state = await getState();
-	const balances = { ...(state.meta?.debtPreviousBalances || {}) };
-	delete balances[person];
-	state.meta.debtPreviousBalances = balances;
-	if (!(await saveState(state))) {
-		alert("Could not clear the opening debt balance.");
-		return;
-	}
-	renderDebts(state);
-}
-
-async function resetPreviousOwing() {
 	if (
 		!window.confirm(
-			"Clear all carried-over debt balances? Current-month transactions will remain.",
+			`Delete ${person} and all of their debt entries from the transaction history?`,
 		)
 	)
 		return;
 
 	const state = await getState();
-	state.meta.debtPreviousBalances = {};
+	const balances = { ...(state.meta?.debtPreviousBalances || {}) };
+	delete balances[person];
+	state.meta.debtPreviousBalances = balances;
+	const categoryNames = new Map(
+		(state.categories || []).map((category) => [category.id, category.name]),
+	);
+	state.transactions = (state.transactions || []).filter((transaction) => {
+		if (!getDebtCategoryKind(categoryNames.get(transaction.categoryId))) {
+			return true;
+		}
+		return (
+			getTransactionPerson(transaction)?.toLowerCase() !== person.toLowerCase()
+		);
+	});
 	if (!(await saveState(state))) {
-		alert("Could not reset the opening debt balances.");
+		alert("Could not delete the person and their debt entries.");
 		return;
 	}
 	renderDebts(state);
+}
+
+async function addDebtPerson() {
+	showModal({
+		title: "Add person to debts",
+		html: `
+			<div class="mb-3">
+				<label for="debt-person-name" class="form-label">Person's name</label>
+				<input id="debt-person-name" type="text" class="form-control" maxlength="80" autocomplete="name" required />
+			</div>
+			<div class="mb-2">
+				<label for="debt-person-opening" class="form-label">Opening amount (TT$)</label>
+				<input id="debt-person-opening" type="number" class="form-control" min="0" step="0.01" value="0.00" required />
+			</div>
+		`,
+		saveText: "Add person",
+		onSave: saveNewDebtPerson,
+	});
+}
+
+async function saveNewDebtPerson() {
+	const normalizedPerson = document
+		.getElementById("debt-person-name")
+		?.value.trim();
+	const openingText = document.getElementById("debt-person-opening")?.value;
+	const openingAmount = Number(openingText);
+	if (!normalizedPerson) {
+		alert("Enter a person's name.");
+		return false;
+	}
+	if (
+		openingText === "" ||
+		!Number.isFinite(openingAmount) ||
+		openingAmount < 0
+	) {
+		alert("Enter a non-negative opening amount.");
+		return false;
+	}
+
+	const state = await getState();
+	const balances = { ...(state.meta?.debtPreviousBalances || {}) };
+	const existingPerson = Object.keys(balances).find(
+		(name) => name.toLowerCase() === normalizedPerson.toLowerCase(),
+	);
+	if (existingPerson) {
+		alert("That person already has an opening balance.");
+		return false;
+	}
+	balances[normalizedPerson] = openingAmount;
+	state.meta.debtPreviousBalances = balances;
+	if (!(await saveState(state))) {
+		alert("Could not add the person.");
+		return false;
+	}
+	renderDebts(state);
+	return true;
+}
+
+function getTransactionPerson(transaction) {
+	const match = String(transaction.description || "").match(
+		/\[([^\]]+)\]|\{([^}]+)\}/,
+	);
+	return (match?.[1] || match?.[2] || "").trim();
 }
 
 function formatMoney(value) {

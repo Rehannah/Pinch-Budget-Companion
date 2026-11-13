@@ -7,7 +7,7 @@ const Header = () => {
         <div class="container d-flex align-items-center justify-content-between">
           <a href="dashboard.html" class="text-logo fw-bold text-decoration-none">Pinch</a>
           <div class="d-flex align-items-center gap-3">
-            <nav class="d-none d-sm-flex gap-3" aria-label="Main navigation">
+			<nav class="d-none d-md-flex gap-3" aria-label="Main navigation">
               <a data-nav href="dashboard.html" class="text-muted text-decoration-none">Dashboard</a>
               <a data-nav href="transactions.html" class="text-muted text-decoration-none">Transactions</a>
 			  <a data-nav href="debts.html" class="text-muted text-decoration-none">Debts</a>
@@ -22,7 +22,7 @@ const Header = () => {
         </div>
       </header>
 
-      <nav class="bottom-nav d-block d-md-none position-fixed start-0 end-0 bottom-0 bg-white border-top">
+	<nav class="bottom-nav d-block d-md-none position-fixed start-0 end-0 bottom-0 bg-white border-top" aria-label="Mobile navigation">
         <div class="container d-flex justify-content-around align-items-center p-2">
           <a data-nav href="dashboard.html" class="p-3 text-center small text-decoration-none">Dashboard</a>
           <a data-nav href="transactions.html" class="p-3 text-center small text-decoration-none">Transactions</a>

@@ -16,8 +16,13 @@ vi.mock("firebase/firestore", () => ({
 	serverTimestamp: firestore.serverTimestamp,
 }));
 
-const { addTransaction, editTransaction, deleteTransaction, resetForNewMonth } =
-	await import("../cloud-storage.js");
+const {
+	addTransaction,
+	editTransaction,
+	deleteTransaction,
+	resetForNewMonth,
+	saveState,
+} = await import("../cloud-storage.js");
 
 function existingState() {
 	return {
@@ -55,7 +60,25 @@ beforeEach(() => {
 });
 
 describe("transaction Firestore persistence", () => {
-	it("clears carried-over debt balances when resetting the month", async () => {
+	it("persists portfolio goal, contribution sliders, and GIF settings", async () => {
+		const state = existingState();
+		state.meta.portfolioGoal = 250000;
+		state.meta.investments.monthlyContribution = 3621;
+		state.meta.gif = {
+			principal: 3397.77,
+			distributionYieldPercent: 2.5,
+			monthlyContribution: 500,
+		};
+
+		await expect(saveState(state)).resolves.toBe(true);
+
+		const writtenState = firestore.setDoc.mock.calls[0][1];
+		expect(writtenState.meta.portfolioGoal).toBe(250000);
+		expect(writtenState.meta.investments.monthlyContribution).toBe(3621);
+		expect(writtenState.meta.gif).toEqual(state.meta.gif);
+	});
+
+	it("preserves opening debt balances when resetting the month", async () => {
 		const state = existingState();
 		state.meta.debtPreviousBalances = { Alex: 125 };
 		firestore.getDoc.mockResolvedValue({
@@ -66,9 +89,17 @@ describe("transaction Firestore persistence", () => {
 		await resetForNewMonth({ month: "2026-12", baseBudget: 3200 });
 
 		const writtenState = firestore.setDoc.mock.calls[0][1];
-		expect(writtenState.meta.debtPreviousBalances).toEqual({});
+		expect(writtenState.meta.debtPreviousBalances).toEqual({ Alex: 125 });
 		expect(writtenState.transactions).toEqual([]);
-		expect(writtenState.meta.investments).toEqual(state.meta.investments);
+		expect(writtenState.meta.investments).toEqual({
+			...state.meta.investments,
+			monthlyContribution: null,
+		});
+		expect(writtenState.meta.gif).toEqual({
+			principal: 0,
+			distributionYieldPercent: 2.5,
+			monthlyContribution: 500,
+		});
 	});
 
 	it("writes a new transaction to the app-state document", async () => {
