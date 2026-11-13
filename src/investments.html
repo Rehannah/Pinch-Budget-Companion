@@ -42,8 +42,14 @@
 						<strong id="portfolio-current-value">TT$0.00</strong>
 					</div>
 					<div class="portfolio-holdings mt-3">
-						<div><span>TTIF</span><strong id="investment-principal-summary">TT$0.00</strong></div>
-						<div><span>GIF</span><strong id="gif-current-value-summary">TT$0.00</strong></div>
+						<div>
+							<span>TTIF</span
+							><strong id="investment-principal-summary">TT$0.00</strong>
+						</div>
+						<div>
+							<span>GIF</span
+							><strong id="gif-current-value-summary">TT$0.00</strong>
+						</div>
 					</div>
 					<div class="summary-metrics mt-3">
 						<div class="summary-metric">
@@ -123,10 +129,20 @@
 								aria-label="TTIF planned monthly contribution"
 							/>
 							<div class="fund-control-foot">
-								<span id="investment-surplus-label">Savings: TT$0.00</span
-								><div class="ttif-adjustment-control">
-									<span id="investment-extra-label" class="contribution-adjustment">TT$0.00</span>
-									<button id="investment-match-savings" class="btn btn-outline-secondary btn-sm" type="button">Match savings</button>
+								<span id="investment-surplus-label">Savings: TT$0.00</span>
+								<div class="ttif-adjustment-control">
+									<span
+										id="investment-extra-label"
+										class="contribution-adjustment"
+										>TT$0.00</span
+									>
+									<button
+										id="investment-match-savings"
+										class="btn btn-outline-secondary btn-sm"
+										type="button"
+									>
+										Match savings
+									</button>
 								</div>
 							</div>
 						</div>
@@ -198,9 +214,14 @@
 						</dl>
 					</section>
 				</div>
-				<section class="portfolio-chart-section bg-white rounded shadow p-3 p-sm-4 mt-4" aria-labelledby="investment-chart-title">
+				<section
+					class="portfolio-chart-section bg-white rounded shadow p-3 p-sm-4 mt-4"
+					aria-labelledby="investment-chart-title"
+				>
 					<div class="chart-heading">
-						<h2 id="investment-chart-title" class="h6 fw-semibold mb-0">Investment value over time</h2>
+						<h2 id="investment-chart-title" class="h6 fw-semibold mb-0">
+							Investment value over time
+						</h2>
 						<span class="small text-muted">TT$ · month</span>
 					</div>
 					<div class="investment-chart-legend" aria-hidden="true">
@@ -208,7 +229,14 @@
 						<span><i class="legend-gif"></i>GIF</span>
 						<span><i class="legend-goal"></i>Goal</span>
 					</div>
-					<svg id="investment-chart" width="720" height="240" viewBox="0 0 720 240" role="img" aria-label="Stacked TTIF and GIF investment values from month 0 to month 12, with the goal shown as a dashed line">
+					<svg
+						id="investment-chart"
+						width="720"
+						height="240"
+						viewBox="0 0 720 240"
+						role="img"
+						aria-label="Stacked TTIF and GIF investment values from month 0 to month 12, with the goal shown as a dashed line"
+					>
 						<g id="investment-chart-content"></g>
 					</svg>
 				</section>
